@@ -1,0 +1,28 @@
+[workspace]
+members = [ "crates/sparkl3d-core", "crates/sparkl3d-kernels", "crates/sparkl2d", "crates/sparkl2d-core", "crates/sparkl2d-kernels", "crates/sparkl2d-f64", "examples2d",
+            "crates/sparkl3d", "crates/sparkl3d-f64", "examples3d" ]
+resolver = "2"
+
+[patch.crates-io]
+#rapier2d = { git = "https://github.com/dimforge/rapier", branch = "testbed-init-app" }
+#rapier3d = { git = "https://github.com/dimforge/rapier", branch = "testbed-init-app" }
+#rapier_testbed2d = { git = "https://github.com/dimforge/rapier", branch = "testbed-init-app" }
+#rapier_testbed3d = { git = "https://github.com/dimforge/rapier", branch = "testbed-init-app" }
+#nalgebra = { git = "https://github.com/dimforge/nalgebra" }
+#simba = { git = "https://github.com/dimforge/simba" }
+
+sparkl3d-core = { path = "./crates/sparkl3d-core" }
+sparkl3d-kernels = { path = "./crates/sparkl3d-kernels" }
+sparkl2d-core = { path = "./crates/sparkl2d-core" }
+sparkl2d-kernels = { path = "./crates/sparkl2d-kernels" }
+
+#bevy = { git = "https://github.com/sebcrozet/bevy", branch = "remove-syn" } # bevy pins an older version of the syn dependency, which causes a version conflict. This fork removes the dependency from bevy.
+#nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "cust-0.3" }
+#parry2d = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
+#parry3d = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
+# parry2d = { path = "../parry/crates/parry2d" }
+# parry3d = { path = "../parry/crates/parry3d" }
+
+
+[profile.release]
+#codegen-units = 1

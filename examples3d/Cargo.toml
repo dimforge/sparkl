@@ -1,0 +1,31 @@
+[package]
+name    = "sparkl-examples-3d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+edition = "2018"
+default-run = "examples3d"
+
+[features]
+cuda = [ "sparkl3d/cuda", "sparkl3d/build-ptx" ]
+
+[dependencies]
+Inflector  = "0.11"
+nalgebra = "0.31"
+rapier_testbed3d = "0.12"
+rapier3d = "0.12"
+oorandom = "11"
+serde = { version = "1", features = [ "derive" ]}
+serde_json = { version = "1", features = [ "preserve_order" ] }
+bincode = "1"
+indexmap = { version = "1", features = [ "serde" ] }
+uuid = "0.8"
+env_logger = "0.9"
+log = "0.4"
+
+[dependencies.sparkl3d]
+path = "../crates/sparkl3d"
+features = [ "rapier-testbed", "serde-serialize" ]
+
+[[bin]]
+name = "examples3d"
+path = "./main.rs"
