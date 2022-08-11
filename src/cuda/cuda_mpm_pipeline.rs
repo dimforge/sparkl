@@ -406,14 +406,17 @@ impl CudaMpmPipeline {
 
                         events[i].halo_g2p2g.start(&context.halo_stream)?;
 
-                        custom_launchers[i].launch_g2p2g(
-                            params,
-                            context,
-                            num_dispatch_blocks,
-                            G2P2G_THREADS as u32,
-                            timestep_length,
-                            true,
-                        )?;
+                        // NOTE: launching with 0 would cause an invalid argument error.
+                        if num_dispatch_blocks > 0 {
+                            custom_launchers[i].launch_g2p2g(
+                                params,
+                                context,
+                                num_dispatch_blocks,
+                                G2P2G_THREADS as u32,
+                                timestep_length,
+                                true,
+                            )?;
+                        }
 
                         events[i].halo_g2p2g.stop(&context.halo_stream)?;
                     }
@@ -471,14 +474,17 @@ impl CudaMpmPipeline {
 
                     events[i].g2p2g.start(&context.stream)?;
 
-                    custom_launchers[i].launch_g2p2g(
-                        params,
-                        context,
-                        num_dispatch_blocks,
-                        G2P2G_THREADS as u32,
-                        timestep_length,
-                        false,
-                    )?;
+                    // NOTE: launching with 0 would cause an invalid argument error.
+                    if num_dispatch_blocks > 0 {
+                        custom_launchers[i].launch_g2p2g(
+                            params,
+                            context,
+                            num_dispatch_blocks,
+                            G2P2G_THREADS as u32,
+                            timestep_length,
+                            false,
+                        )?;
+                    }
 
                     events[i].g2p2g.stop(&context.stream)?;
                 }
