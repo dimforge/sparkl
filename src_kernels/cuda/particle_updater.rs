@@ -1,4 +1,4 @@
-use crate::GpuParticleModel;
+use crate::{GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
@@ -22,6 +22,7 @@ pub trait ParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
+        colliders: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -32,7 +33,7 @@ pub trait ParticleUpdater {
         velocity: Vector<Real>,
         velocity_gradient_det: Real,
         psi_pos: Real,
-    ) -> Option<Matrix<Real>>;
+    ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
 
 pub struct DefaultParticleUpdater {
@@ -72,6 +73,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
+        colliders: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -82,7 +84,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         velocity: Vector<Real>,
         velocity_gradient_det: Real,
         _psi_pos: Real,
-    ) -> Option<Matrix<Real>> {
+    ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
 
         particle_vel.vector = velocity;
@@ -195,34 +197,42 @@ impl ParticleUpdater for DefaultParticleUpdater {
             }
         }
 
-        // /*
-        //  * Particle projection.
-        //  * TODO: refactor to its own function.
-        //  */
-        // if enable_boundary_particle_projection {
-        //     for (_, collider) in rigid_world.colliders.iter() {
-        //         let proj =
-        //             collider
-        //                 .shape()
-        //                 .project_point(collider.position(), &particle_pos_vel.position, false);
-        //
-        //         if proj.is_inside {
-        //             particle.velocity += (proj.point - particle_pos_vel.position) / dt;
-        //             particle_pos_vel.position = proj.point;
-        //         }
-        //     }
-        // }
+        /*
+         * Particle projection.
+         * TODO: refactor to its own function.
+         */
+        let mut penalty_force = Vector::zeros();
+        if false {
+            // enable_boundary_particle_projection {
+            for collider in colliders.iter() {
+                if collider.penalty_stiffness > 0.0 {
+                    if let Some(proj) = collider.shape.project_point_with_max_dist(
+                        &collider.position,
+                        &particle_pos.point,
+                        false,
+                        100.0 * cell_width,
+                    ) {
+                        if proj.is_inside {
+                            penalty_force +=
+                                (proj.point - particle_pos.point) * collider.penalty_stiffness;
+                        }
+                    }
+                }
+            }
+        }
 
         // MPM-MLS: the APIC affine matrix and the velocity gradient are the same.
         if !particle_status.failed {
-            Some(model.constitutive_model.kirchhoff_stress(
+            let stress = model.constitutive_model.kirchhoff_stress(
                 particle_id,
                 particle_volume,
                 particle_status.phase,
                 &velocity_gradient,
-            ))
+            );
+
+            Some((stress, penalty_force))
         } else {
-            Some(Matrix::zeros())
+            Some((Matrix::zeros(), Vector::zeros()))
         }
     }
 }

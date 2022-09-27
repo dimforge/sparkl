@@ -226,6 +226,11 @@ impl ContextEvents {
     }
 }
 
+pub struct StepDetails {
+    pub simulated_time: Real,
+    pub num_substeps: u32,
+}
+
 impl<'a> SingleGpuMpmContext<'a> {
     pub fn make_current(&self) -> CudaResult<()> {
         cust::context::CurrentContext::set_current(&self.context)

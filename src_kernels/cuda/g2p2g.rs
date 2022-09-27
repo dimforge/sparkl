@@ -1,7 +1,10 @@
 use crate::cuda::atomic::{AtomicAdd, AtomicInt};
 use crate::cuda::{DefaultParticleUpdater, ParticleUpdater};
 use crate::gpu_grid::GpuGrid;
-use crate::{BlockVirtualId, GpuParticleModel, NBH_SHIFTS, NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK};
+use crate::{
+    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NBH_SHIFTS, NBH_SHIFTS_SHARED,
+    NUM_CELL_PER_BLOCK,
+};
 use cuda_std::thread;
 use cuda_std::*;
 use nalgebra::vector;
@@ -36,6 +39,8 @@ struct GridGatherData {
 #[kernel]
 pub unsafe fn g2p2g(
     dt: Real,
+    colliders_ptr: *const GpuCollider,
+    num_colliders: usize,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -50,6 +55,8 @@ pub unsafe fn g2p2g(
 ) {
     g2p2g_generic(
         dt,
+        colliders_ptr,
+        num_colliders,
         particles_status,
         particles_pos,
         particles_vel,
@@ -67,6 +74,8 @@ pub unsafe fn g2p2g(
 // This MUST be called with a block size equal to G2P2G_THREADS
 pub unsafe fn g2p2g_generic(
     dt: Real,
+    colliders_ptr: *const GpuCollider,
+    num_colliders: usize,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -88,6 +97,11 @@ pub unsafe fn g2p2g_generic(
         next_grid.dispatch_halo_block_to_active_block
     } else {
         next_grid.dispatch_block_to_active_block
+    };
+
+    let collider_set = GpuColliderSet {
+        ptr: colliders_ptr,
+        len: num_colliders,
     };
 
     let dispatch_block_to_active_block = *dispatch2active.as_ptr().add(bid as usize);
@@ -113,6 +127,7 @@ pub unsafe fn g2p2g_generic(
         particle_g2p2g(
             dt,
             particle_id,
+            &collider_set,
             &mut particle_status_i,
             &mut particle_pos_i,
             &mut particle_vel_i,
@@ -139,6 +154,7 @@ pub unsafe fn g2p2g_generic(
 unsafe fn particle_g2p2g(
     dt: Real,
     particle_id: u32,
+    colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_vel: &mut ParticleVelocity,
@@ -187,9 +203,10 @@ unsafe fn particle_g2p2g(
         velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
     }
 
-    if let Some(stress) = particle_updater.update_particle_and_compute_kirchhoff_stress(
+    if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
         dt,
         cell_width,
+        colliders,
         particle_id,
         particle_status,
         particle_pos,
@@ -207,7 +224,7 @@ unsafe fn particle_g2p2g(
 
         let affine = particle_volume.mass * velocity_gradient
             - (particle_volume.volume0 * inv_d * dt) * stress;
-        let momentum = particle_volume.mass * particle_vel.vector;
+        let momentum = particle_volume.mass * particle_vel.vector + force * dt;
 
         let psi_mass = if particle_status.phase > 0.0 && !particle_status.failed {
             particle_volume.mass
