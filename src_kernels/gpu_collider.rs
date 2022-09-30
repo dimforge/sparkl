@@ -165,14 +165,21 @@ pub fn polyline_project_point(
                     (point - best_proj.proj.point).dot(&normal1) <= 0.0
                 }
             };
-
-            if flip_interior {
-                best_proj.proj.is_inside = true;
-            }
         }
     }
 
-    best_proj.map(|p| p.proj.transform_by(position))
+    best_proj.map(|mut p| {
+        #[cfg(feature = "dim3")]
+        {
+            p.proj.point.z = local_point.z;
+        }
+
+        if flip_interior {
+            p.proj.is_inside = !p.proj.is_inside;
+        }
+
+        p.proj.transform_by(position)
+    })
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
