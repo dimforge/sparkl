@@ -32,7 +32,7 @@ nalgebra = { version = "0.31", default-features = false, features = [ "bytemuck"
 sparkl2d-core = { version = "0.1", features = [ "cuda" ] }
 cuda_std = "0.2"
 bytemuck = { version = "1", features = [ "derive" ] }
-parry2d = { version = "0.9", default-features = false, features = [ "required-features", "cuda" ] }
+parry2d = { version = "0.10", default-features = false, features = [ "required-features", "cuda" ] }
 cust_core = "0.1"
 
 [target.'cfg(not(target_os = "cuda"))'.dependencies]

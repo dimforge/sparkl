@@ -11,8 +11,8 @@ cuda = [ "sparkl2d/cuda", "sparkl2d/build-ptx" ]
 [dependencies]
 Inflector  = "0.11"
 nalgebra = "0.31"
-rapier_testbed2d = "0.12"
-rapier2d = "0.12"
+rapier_testbed2d = "0.15"
+rapier2d = "0.15"
 oorandom = "11"
 log = "0.4"
 env_logger = "0.9"
