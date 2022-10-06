@@ -226,7 +226,7 @@ unsafe fn particle_g2p2g(
             - (particle_volume.volume0 * inv_d * dt) * stress;
         let momentum = particle_volume.mass * particle_vel.vector + force * dt;
 
-        let psi_mass = if particle_status.phase > 0.0 && !particle_status.failed {
+        let psi_mass = if particle_phase.phase > 0.0 && !particle_status.failed {
             particle_volume.mass
         } else {
             0.0

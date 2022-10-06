@@ -97,11 +97,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
         // TODO: move this to a new failure model?
         // if damage_model == DamageModel::ModifiedEigenerosion
         //     && particle.crack_propagation_factor != 0.0
-        //     && particle_status.phase > 0.0
+        //     && particle_phase.phase > 0.0
         // {
         //     let crack_energy = particle.crack_propagation_factor * cell_width * psi_pos_momentum;
         //     if crack_energy > particle.crack_threshold {
-        //         particle_status.phase = 0.0;
+        //         particle_phase.phase = 0.0;
         //     }
         // }
 
@@ -145,7 +145,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         }
 
         if let Some(plasticity) = &model.plastic_model {
-            plasticity.update_particle(particle_id, particle_volume, particle_status.phase);
+            plasticity.update_particle(particle_id, particle_volume, particle_phase.phase);
         }
 
         if particle_status.is_static {
@@ -174,7 +174,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
             let energy = model.constitutive_model.pos_energy(
                 particle_id,
                 particle_volume,
-                particle_status.phase,
+                particle_phase.phase,
             );
             particle_phase.psi_pos = particle_phase.psi_pos.max(energy);
         }
@@ -188,11 +188,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
                 let stress = model.constitutive_model.kirchhoff_stress(
                     particle_id,
                     particle_volume,
-                    particle_status.phase,
+                    particle_phase.phase,
                     &velocity_gradient,
                 );
                 if failure_model.particle_failed(&stress) {
-                    particle_status.phase = 0.0;
+                    particle_phase.phase = 0.0;
                 }
             }
         }
@@ -226,7 +226,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
             let stress = model.constitutive_model.kirchhoff_stress(
                 particle_id,
                 particle_volume,
-                particle_status.phase,
+                particle_phase.phase,
                 &velocity_gradient,
             );
 

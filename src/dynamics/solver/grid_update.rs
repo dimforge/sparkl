@@ -86,6 +86,7 @@ impl MlsSolver {
                     }
 
                     match boundary_handling {
+                        BoundaryHandling::None => {}
                         BoundaryHandling::Stick => {
                             if proj.is_inside {
                                 cell.velocity.fill(0.0);

@@ -13,7 +13,6 @@ pub unsafe fn grid_update(
     mut next_grid: GpuGrid,
     colliders_ptr: *const GpuCollider,
     num_colliders: usize,
-    boundary_handling: BoundaryHandling,
     gravity: Vector<Real>,
 ) {
     let bid = BlockHeaderId(thread::block_idx_x());
@@ -47,7 +46,6 @@ pub unsafe fn grid_update(
             cell_pos.into(),
             cell_width,
             &collider_set,
-            boundary_handling,
             gravity,
         )
     }
@@ -59,7 +57,6 @@ fn update_single_cell(
     cell_pos: Point<Real>,
     cell_width: Real,
     colliders: &GpuColliderSet,
-    boundary_handling: BoundaryHandling,
     gravity: Vector<Real>,
 ) {
     let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
@@ -67,13 +64,18 @@ fn update_single_cell(
 
     // TODO: replace this by a proper boundary  handling.
     for collider in colliders.iter() {
+        if collider.grid_boundary_handling == BoundaryHandling::None {
+            continue;
+        }
+
         if let Some(proj) = collider.shape.project_point_with_max_dist(
             &collider.position,
             &cell_pos,
             false,
             cell_width * 2.0,
         ) {
-            match boundary_handling {
+            match collider.grid_boundary_handling {
+                BoundaryHandling::None => {}
                 BoundaryHandling::Stick => {
                     if proj.is_inside {
                         cell_velocity.fill(0.0);

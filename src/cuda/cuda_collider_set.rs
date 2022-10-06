@@ -1,3 +1,4 @@
+use crate::core::prelude::BoundaryHandling;
 use crate::kernels::GpuCollider;
 use cust::{
     error::CudaResult,
@@ -22,6 +23,18 @@ pub struct CudaColliderOptions {
     pub handle: ColliderHandle,
     pub penalty_stiffness: f32,
     pub flip_interior: bool,
+    pub grid_boundary_handling: BoundaryHandling,
+}
+
+impl Default for CudaColliderOptions {
+    fn default() -> Self {
+        Self {
+            handle: ColliderHandle::invalid(),
+            penalty_stiffness: 0.0,
+            flip_interior: false,
+            grid_boundary_handling: BoundaryHandling::Friction,
+        }
+    }
 }
 
 impl CudaColliderSet {
@@ -38,14 +51,19 @@ impl CudaColliderSet {
         let mut polyline_buffers = vec![];
 
         for (handle, collider) in collider_set.iter() {
-            let options = options.iter().find(|opt| opt.handle == handle);
+            let options = options
+                .iter()
+                .find(|opt| opt.handle == handle)
+                .copied()
+                .unwrap_or_else(Default::default);
 
             if let Some(cuboid) = collider.shape().as_cuboid() {
                 let gpu_collider = GpuCollider {
                     shape: GpuColliderShape::Cuboid(*cuboid),
                     position: *collider.position(),
                     friction: collider.friction(),
-                    penalty_stiffness: options.map(|opt| opt.penalty_stiffness).unwrap_or(0.0),
+                    penalty_stiffness: options.penalty_stiffness,
+                    grid_boundary_handling: options.grid_boundary_handling,
                 };
                 gpu_colliders.push(gpu_collider);
             } else if let Some(heightfield) = collider.shape().as_heightfield() {
@@ -55,11 +73,12 @@ impl CudaColliderSet {
                     shape: GpuColliderShape::HeightField {
                         heightfield: cuda_heightfield_pointer,
                         bellow_heightfield_is_solid: true,
-                        flip_interior: options.map(|opt| opt.flip_interior).unwrap_or(false),
+                        flip_interior: options.flip_interior,
                     },
                     position: *collider.position(),
                     friction: collider.friction(),
-                    penalty_stiffness: options.map(|opt| opt.penalty_stiffness).unwrap_or(0.0),
+                    penalty_stiffness: options.penalty_stiffness,
+                    grid_boundary_handling: options.grid_boundary_handling,
                 };
                 heightfield_buffers.push(cuda_heightfield);
                 gpu_colliders.push(gpu_collider);
@@ -68,11 +87,12 @@ impl CudaColliderSet {
                 let gpu_collider = GpuCollider {
                     shape: GpuColliderShape::Polyline {
                         vertices: cuda_vertices.as_device_ptr(),
-                        flip_interior: options.map(|opt| opt.flip_interior).unwrap_or(false),
+                        flip_interior: options.flip_interior,
                     },
                     position: *collider.position(),
                     friction: collider.friction(),
-                    penalty_stiffness: options.map(|opt| opt.penalty_stiffness).unwrap_or(0.0),
+                    penalty_stiffness: options.penalty_stiffness,
+                    grid_boundary_handling: options.grid_boundary_handling,
                 };
                 polyline_buffers.push(cuda_vertices);
                 gpu_colliders.push(gpu_collider);

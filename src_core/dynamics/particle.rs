@@ -118,7 +118,6 @@ pub struct ParticleStatus {
     pub kinematic_vel_enabled: bool,
     pub kinematic_vel: Vector<Real>,
     pub model_index: usize,
-    pub phase: Real,
 }
 impl Default for ParticleStatus {
     fn default() -> Self {
@@ -128,7 +127,6 @@ impl Default for ParticleStatus {
             kinematic_vel_enabled: false,
             kinematic_vel: Vector::zeros(),
             model_index: 0,
-            phase: 1.0,
         }
     }
 }
@@ -141,6 +139,7 @@ pub struct ParticlePhase {
     pub phase: Real,
     pub psi_pos: Real,
 }
+
 impl Default for ParticlePhase {
     fn default() -> Self {
         Self {

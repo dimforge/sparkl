@@ -545,7 +545,6 @@ impl CudaMpmPipeline {
                             context.grid.next_device_elements(),
                             coll_ptr,
                             coll_len,
-                            params.boundary_handling,
                             *gravity,
                         )
                     )?;

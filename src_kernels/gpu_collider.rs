@@ -3,6 +3,7 @@ use na::ComplexField;
 use parry::query::{PointProjection, PointQueryWithLocation};
 use parry::shape::{Cuboid, CudaHeightFieldPointer, Segment, SegmentPointLocation};
 use parry::utils::CudaArrayPointer1;
+use sparkl_core::dynamics::solver::BoundaryHandling;
 use sparkl_core::math::{Isometry, Point, Real};
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
@@ -190,6 +191,7 @@ pub struct GpuCollider {
     pub position: Isometry<Real>,
     pub friction: Real,
     pub penalty_stiffness: Real,
+    pub grid_boundary_handling: BoundaryHandling,
 }
 
 pub struct GpuColliderSet {
