@@ -371,6 +371,9 @@ impl CudaMpmPipeline {
                     launch!(
                         module.reset_grid<<<num_active_blocks, blk_threads, 0, stream>>>(context.grid.next_device_elements())
                     )?;
+                    launch!(
+                        module.copy_grid_projection_data<<<num_active_blocks, blk_threads, 0, stream>>>(context.grid.curr_device_elements(), context.grid.next_device_elements())
+                    )?;
 
                     events[i].reset_grid.stop(stream)?;
                     events[i].estimate_timestep.start(stream)?;

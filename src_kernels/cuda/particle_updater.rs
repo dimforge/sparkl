@@ -1,4 +1,4 @@
-use crate::{GpuColliderSet, GpuParticleModel};
+use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
@@ -29,10 +29,7 @@ pub trait ParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        velocity_gradient: &mut Matrix<Real>,
-        velocity: Vector<Real>,
-        velocity_gradient_det: Real,
-        psi_pos: Real,
+        interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
 
@@ -80,14 +77,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        velocity_gradient: &mut Matrix<Real>,
-        velocity: Vector<Real>,
-        velocity_gradient_det: Real,
-        _psi_pos: Real,
+        interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
 
-        particle_vel.vector = velocity;
+        particle_vel.vector = interpolated_data.velocity;
 
         let is_fluid = model.constitutive_model.is_fluid();
 
@@ -129,10 +123,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
          */
         if !is_fluid {
             particle_volume.deformation_gradient +=
-                (*velocity_gradient * dt) * particle_volume.deformation_gradient;
+                (interpolated_data.velocity_gradient * dt) * particle_volume.deformation_gradient;
         } else {
             particle_volume.deformation_gradient[(0, 0)] +=
-                (velocity_gradient_det * dt) * particle_volume.deformation_gradient[(0, 0)];
+                (interpolated_data.velocity_gradient_det * dt)
+                    * particle_volume.deformation_gradient[(0, 0)];
             model
                 .constitutive_model
                 .update_internal_energy_and_pressure(
@@ -140,7 +135,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
                     particle_volume,
                     dt,
                     cell_width,
-                    &velocity_gradient,
+                    &interpolated_data.velocity_gradient,
                 );
         }
 
@@ -150,7 +145,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
 
         if particle_status.is_static {
             particle_vel.vector.fill(0.0);
-            velocity_gradient.fill(0.0);
+            interpolated_data.velocity_gradient.fill(0.0);
         }
 
         if particle_volume.density_def_grad() == 0.0
@@ -189,7 +184,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
                     particle_id,
                     particle_volume,
                     particle_phase.phase,
-                    &velocity_gradient,
+                    &interpolated_data.velocity_gradient,
                 );
                 if failure_model.particle_failed(&stress) {
                     particle_phase.phase = 0.0;
@@ -227,7 +222,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
                 particle_id,
                 particle_volume,
                 particle_phase.phase,
-                &velocity_gradient,
+                &interpolated_data.velocity_gradient,
             );
 
             Some((stress, penalty_force))
