@@ -6,7 +6,7 @@ use cust::{
 };
 use kernels::GpuColliderShape;
 use parry::math::{Point, Real};
-use parry::shape::CudaHeightField;
+use parry::shape::{CudaHeightField, CudaTriMesh};
 use parry::utils::CudaArray1;
 use rapier::geometry::{ColliderHandle, ColliderSet};
 
@@ -14,6 +14,7 @@ pub struct CudaColliderSet {
     buffer: DeviceBuffer<GpuCollider>,
     // NOTE: keep this to keep the cuda buffers allocated.
     _heightfield_buffers: Vec<CudaHeightField>,
+    _trimesh_buffers: Vec<CudaTriMesh>,
     _polyline_buffers: Vec<CudaArray1<Point<Real>>>,
     len: usize,
 }
@@ -48,6 +49,7 @@ impl CudaColliderSet {
     ) -> CudaResult<Self> {
         let mut gpu_colliders = vec![];
         let mut heightfield_buffers = vec![];
+        let mut trimesh_buffers = vec![];
         let mut polyline_buffers = vec![];
 
         for (handle, collider) in collider_set.iter() {
@@ -82,6 +84,21 @@ impl CudaColliderSet {
                 };
                 heightfield_buffers.push(cuda_heightfield);
                 gpu_colliders.push(gpu_collider);
+            } else if let Some(trimesh) = collider.shape().as_trimesh() {
+                let cuda_trimesh = trimesh.to_cuda()?;
+                let cuda_trimesh_pointer = cuda_trimesh.as_device_ptr();
+                let gpu_collider = GpuCollider {
+                    shape: GpuColliderShape::TriMesh {
+                        trimesh: cuda_trimesh_pointer,
+                        flip_interior: options.flip_interior,
+                    },
+                    position: *collider.position(),
+                    friction: collider.friction(),
+                    penalty_stiffness: options.penalty_stiffness,
+                    grid_boundary_handling: options.grid_boundary_handling,
+                };
+                trimesh_buffers.push(cuda_trimesh);
+                gpu_colliders.push(gpu_collider);
             } else if let Some(polyline) = collider.shape().as_polyline() {
                 let cuda_vertices = CudaArray1::new(polyline.vertices())?;
                 let gpu_collider = GpuCollider {
@@ -99,11 +116,14 @@ impl CudaColliderSet {
             }
         }
 
+        dbg!("Len after conversion: {}", gpu_colliders.len());
+
         let buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
         Ok(Self {
             buffer,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
+            _trimesh_buffers: trimesh_buffers,
             len: gpu_colliders.len(),
         })
     }

@@ -1,7 +1,8 @@
+use crate::DevicePointer;
 use core::marker::PhantomData;
 use na::ComplexField;
 use parry::query::{PointProjection, PointQueryWithLocation};
-use parry::shape::{Cuboid, CudaHeightFieldPointer, Segment, SegmentPointLocation};
+use parry::shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation};
 use parry::utils::CudaArrayPointer1;
 use sparkl_core::dynamics::solver::BoundaryHandling;
 use sparkl_core::math::{Isometry, Point, Real};
@@ -12,8 +13,12 @@ use sparkl_core::math::{Isometry, Point, Real};
 pub enum GpuColliderShape {
     Cuboid(Cuboid),
     HeightField {
-        heightfield: CudaHeightFieldPointer,
+        heightfield: CudaHeightFieldPtr,
         bellow_heightfield_is_solid: bool,
+        flip_interior: bool,
+    },
+    TriMesh {
+        trimesh: CudaTriMeshPtr,
         flip_interior: bool,
     },
     Polyline {
@@ -50,6 +55,17 @@ impl GpuColliderShape {
                 vertices,
                 flip_interior,
             } => polyline_project_point(vertices, position, point, solid, *flip_interior),
+            Self::TriMesh {
+                trimesh,
+                flip_interior,
+            } => trimesh
+                .project_point_with_max_dist(position, point, solid, Real::MAX) // max_dist)
+                .map(|mut proj| {
+                    if *flip_interior {
+                        proj.is_inside = !proj.is_inside;
+                    }
+                    proj
+                }),
             Self::HeightField {
                 heightfield,
                 bellow_heightfield_is_solid,
@@ -74,6 +90,7 @@ impl GpuColliderShape {
 
                 Some(local_proj.transform_by(position))
             }
+            _ => None,
         }
     }
 }
