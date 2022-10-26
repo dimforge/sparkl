@@ -222,11 +222,27 @@ unsafe fn particle_g2p2g(
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+    }
 
-        interpolated_data.projection_scaled_dir = cell.projection_scaled_dir
-            + cell.projection_scaled_dir * dpt.dot(&cell.projection_scaled_dir)
-                / cell.projection_scaled_dir.norm_squared();
-        interpolated_data.projection_status = cell.projection_status;
+    {
+        let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
+        let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
+        let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
+        let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+
+        let proj_norm = cell.projection_scaled_dir.norm();
+
+        if proj_norm > 1.0e-5 {
+            let normal = cell.projection_scaled_dir / proj_norm;
+            interpolated_data.projection_scaled_dir =
+                cell.projection_scaled_dir - normal * dpt.dot(&normal);
+
+            if interpolated_data.projection_scaled_dir.dot(&normal) < 0.0 {
+                interpolated_data.projection_status = cell.projection_status.flip();
+            } else {
+                interpolated_data.projection_status = cell.projection_status;
+            }
+        }
     }
 
     if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(

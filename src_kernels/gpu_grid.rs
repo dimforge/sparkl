@@ -422,6 +422,16 @@ pub enum GpuGridProjectionStatus {
     TooFar,
 }
 
+impl GpuGridProjectionStatus {
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Inside(i) => Self::Outside(i),
+            Self::Outside(i) => Self::Inside(i),
+            _ => self,
+        }
+    }
+}
+
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]

@@ -98,39 +98,52 @@ fn update_single_cell(
     match cell.projection_status {
         GpuGridProjectionStatus::Inside(collider_id)
         | GpuGridProjectionStatus::Outside(collider_id) => {
-            if let Some((mut normal, dist)) =
-                Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
-            {
-                let is_inside =
-                    matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
+            let is_inside = matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
+            let collider = colliders.get(collider_id).unwrap();
 
-                if is_inside {
-                    normal = -normal;
+            match collider.grid_boundary_handling {
+                BoundaryHandling::Stick => {
+                    if is_inside {
+                        cell_velocity = na::zero();
+                    }
                 }
+                BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
+                    if let Some((mut normal, dist)) =
+                        Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
+                    {
+                        if is_inside {
+                            normal = -normal;
+                        }
 
-                if normal.z >= 0.0 {
-                    let normal_vel = cell_velocity.dot(&normal);
+                        if collider.grid_boundary_handling == BoundaryHandling::Friction
+                            || (collider.grid_boundary_handling == BoundaryHandling::FrictionZUp
+                                && normal.z >= 0.0)
+                        {
+                            let normal_vel = cell_velocity.dot(&normal);
 
-                    if normal_vel < 0.0 {
-                        let dist_with_margin = dist - cell_width;
-                        if is_inside || dist_with_margin <= 0.0 {
-                            let tangent_vel = cell_velocity - normal_vel * normal.into_inner();
-                            let tangent_vel_norm = tangent_vel.norm();
+                            if normal_vel < 0.0 {
+                                let dist_with_margin = dist - cell_width;
+                                if is_inside || dist_with_margin <= 0.0 {
+                                    let tangent_vel =
+                                        cell_velocity - normal_vel * normal.into_inner();
+                                    let tangent_vel_norm = tangent_vel.norm();
 
-                            cell_velocity = tangent_vel;
+                                    cell_velocity = tangent_vel;
 
-                            if tangent_vel_norm > 1.0e-10 {
-                                // Friction.
-                                let friction = colliders.get(collider_id).unwrap().friction;
-                                cell_velocity = tangent_vel / tangent_vel_norm
-                                    * (tangent_vel_norm + normal_vel * friction).max(0.0);
+                                    if tangent_vel_norm > 1.0e-10 {
+                                        let friction = collider.friction;
+                                        cell_velocity = tangent_vel / tangent_vel_norm
+                                            * (tangent_vel_norm + normal_vel * friction).max(0.0);
+                                    }
+                                } else if -normal_vel * dt > dist_with_margin {
+                                    cell_velocity -=
+                                        (dist_with_margin / dt + normal_vel) * normal.into_inner();
+                                }
                             }
-                        } else if -normal_vel * dt > dist_with_margin {
-                            cell_velocity -=
-                                (dist_with_margin / dt + normal_vel) * normal.into_inner();
                         }
                     }
                 }
+                BoundaryHandling::None => {}
             }
         }
         _ => {}
