@@ -44,8 +44,8 @@ required-features = [ "dim2", "f32" ]
 [dependencies]
 sparkl2d-core = "0.1"
 nalgebra = "0.31"
-parry2d = "0.10"
-rapier2d = "0.15"
+parry2d = "0.11"
+rapier2d = "0.16"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"
@@ -65,7 +65,7 @@ memmap2 = "0.3"
 bytemuck = "1"
 
 # Third-party integration
-rapier_testbed2d = { version = "0.15", optional = true }
+rapier_testbed2d = { version = "0.16", optional = true }
 bevy_egui = { version = "0.16", optional = true }
 bevy_ecs = { version = "0.8", optional = true }
 itertools = { version = "0.10", optional = true }

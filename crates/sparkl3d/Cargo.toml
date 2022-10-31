@@ -43,8 +43,8 @@ required-features = [ "dim3", "f32" ]
 [dependencies]
 sparkl3d-core = "0.1"
 nalgebra = "0.31"
-parry3d = "0.10"
-rapier3d = "0.15"
+parry3d = "0.11"
+rapier3d = "0.16"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"

@@ -30,7 +30,7 @@ required-features = [ "dim3", "f64" ]
 
 [dependencies]
 nalgebra = "0.31"
-parry3d-f64 = "0.10"
+parry3d-f64 = "0.11"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"
