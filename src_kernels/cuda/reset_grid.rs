@@ -51,6 +51,7 @@ pub unsafe fn copy_grid_projection_data(prev_grid: GpuGrid, mut next_grid: GpuGr
             prev_grid.get_node(prev_node_id),
             next_grid.get_node_mut(next_node_id),
         ) {
+            next_cell.prev_mass = prev_cell.mass;
             next_cell.projection_status = prev_cell.projection_status;
             next_cell.projection_scaled_dir = prev_cell.projection_scaled_dir;
         }

@@ -9,6 +9,10 @@ use sparkl_core::prelude::{
 use na::ComplexField;
 
 pub trait ParticleUpdater {
+    fn artificial_pressure_stiffness(&self) -> f32 {
+        0.0
+    }
+
     unsafe fn estimate_particle_timestep_length(
         &self,
         cell_width: Real,

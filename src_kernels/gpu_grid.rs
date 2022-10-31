@@ -423,6 +423,14 @@ pub enum GpuGridProjectionStatus {
 }
 
 impl GpuGridProjectionStatus {
+    pub fn is_inside(self) -> bool {
+        matches!(self, Self::Inside(_))
+    }
+
+    pub fn is_outside(self) -> bool {
+        matches!(self, Self::Outside(_))
+    }
+
     pub fn flip(self) -> Self {
         match self {
             Self::Inside(i) => Self::Outside(i),
@@ -444,6 +452,7 @@ pub struct GpuGridNode {
     // This is then replaced by the velocity during the grid update.
     pub psi_momentum_velocity: Real,
     pub psi_mass: Real,
+    pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
 }
@@ -455,6 +464,7 @@ impl Default for GpuGridNode {
             momentum_velocity: Vector::zeros(),
             psi_momentum_velocity: 0.0,
             psi_mass: 0.0,
+            prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
         }

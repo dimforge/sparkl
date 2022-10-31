@@ -20,6 +20,7 @@ const NUM_SHARED_CELLS: usize = (4 * 4 * 4) * (2 * 2 * 2);
 const FREE: u32 = u32::MAX;
 
 struct GridGatherData {
+    prev_mass: Real,
     mass: Real,
     momentum: Vector<Real>,
     velocity: Vector<Real>,
@@ -210,6 +211,15 @@ unsafe fn particle_g2p2g(
         + (assoc_cell_index_in_block.y + 1) * 8
         + (assoc_cell_index_in_block.z + 1) * 8 * 8;
 
+    let midcell_mass = {
+        let midcell = &*shared_nodes
+            .add(packed_cell_index_in_block as usize + NBH_SHIFTS_SHARED.last().unwrap());
+        midcell.prev_mass
+    };
+
+    let artificial_pressure_stiffness = particle_updater.artificial_pressure_stiffness();
+    let mut artificial_pressure_force = Vector::zeros();
+
     for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
         let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
         #[cfg(feature = "dim2")]
@@ -222,6 +232,16 @@ unsafe fn particle_g2p2g(
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+
+        // TODO: should this artificial pressure thing be part of another crate instead of the
+        // "main" g2p2g kernel?
+        if artificial_pressure_stiffness != 0.0
+            && !particle_status.is_static
+            && cell.projection_status.is_outside()
+        {
+            artificial_pressure_force +=
+                weight * (midcell_mass - cell.prev_mass) * dpt * artificial_pressure_stiffness;
+        }
     }
 
     {
@@ -263,7 +283,8 @@ unsafe fn particle_g2p2g(
 
         let affine = particle_volume.mass * interpolated_data.velocity_gradient
             - (particle_volume.volume0 * inv_d * dt) * stress;
-        let momentum = particle_volume.mass * particle_vel.vector + force * dt;
+        let momentum =
+            particle_volume.mass * particle_vel.vector + (force + artificial_pressure_force) * dt;
 
         let psi_mass = if particle_phase.phase > 0.0 && !particle_status.failed {
             particle_volume.mass
@@ -402,11 +423,13 @@ unsafe fn transfer_global_blocks_to_shared_memory(
                 shared_node.psi_velocity = global_node.psi_momentum_velocity;
                 shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
                 shared_node.projection_status = global_node.projection_status;
+                shared_node.prev_mass = global_node.prev_mass;
             } else {
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
                 shared_node.projection_scaled_dir = na::zero();
                 shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
+                shared_node.prev_mass = 0.0;
             }
 
             shared_node.psi_momentum = 0.0;
@@ -442,6 +465,7 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             shared_node.psi_mass = 0.0;
             shared_node.momentum.fill(0.0);
             shared_node.mass = 0.0;
+            shared_node.prev_mass = 0.0;
             shared_node.projection_scaled_dir = na::zero();
             shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
             shared_node.lock = FREE;
