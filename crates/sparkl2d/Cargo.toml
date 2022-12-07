@@ -66,7 +66,7 @@ bytemuck = "1"
 
 # Third-party integration
 rapier_testbed2d = { version = "0.16", optional = true }
-bevy_egui = { version = "0.16", optional = true }
+bevy_egui = { version = "0.16", optional = true, features = [ "immutable_ctx" ] }
 bevy_ecs = { version = "0.8", optional = true }
 itertools = { version = "0.10", optional = true }
 

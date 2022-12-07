@@ -115,10 +115,15 @@ fn update_single_cell(
                             normal = -normal;
                         }
 
-                        if collider.grid_boundary_handling == BoundaryHandling::Friction
+                        #[cfg(feature = "dim2")]
+                        let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
+                        #[cfg(feature = "dim3")]
+                        let apply_friction = collider.grid_boundary_handling
+                            == BoundaryHandling::Friction
                             || (collider.grid_boundary_handling == BoundaryHandling::FrictionZUp
-                                && normal.z >= 0.0)
-                        {
+                                && normal.z >= 0.0);
+
+                        if apply_friction {
                             let normal_vel = cell_velocity.dot(&normal);
 
                             if normal_vel < 0.0 {

@@ -6,7 +6,7 @@ edition = "2018"
 default-run = "examples3d"
 
 [features]
-cuda = [ "sparkl3d/cuda", "sparkl3d/build-ptx" ]
+cuda = [ "sparkl3d/cuda" ]
 
 [dependencies]
 Inflector  = "0.11"

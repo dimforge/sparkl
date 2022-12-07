@@ -1,15 +1,14 @@
-use bevy::pbr::PbrPlugin;
 use bevy::{
-    core_pipeline::Transparent3d,
+    core_pipeline::core_3d::Opaque3d,
     ecs::system::{lifetimeless::*, SystemParamItem},
     math::prelude::*,
     pbr::{MeshPipeline, MeshPipelineKey, MeshUniform, SetMeshBindGroup, SetMeshViewBindGroup},
     prelude::*,
     reflect::TypeUuid,
     render::{
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
         mesh::{GpuBufferInfo, MeshVertexBufferLayout},
         render_asset::RenderAssets,
-        render_component::{ExtractComponent, ExtractComponentPlugin},
         render_phase::{
             AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
             SetItemPipeline, TrackedRenderPass,
@@ -42,7 +41,7 @@ impl Plugin for ParticleMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ExtractComponentPlugin::<ParticleInstanceMaterialData>::default());
         app.sub_app_mut(RenderApp)
-            .add_render_command::<Transparent3d, DrawCustom>()
+            .add_render_command::<Opaque3d, DrawCustom>()
             .init_resource::<ParticleRenderPipeline>()
             .init_resource::<SpecializedMeshPipelines<ParticleRenderPipeline>>()
             .add_system_to_stage(RenderStage::Queue, queue_custom)
@@ -64,7 +63,7 @@ pub struct ParticleInstanceData {
 }
 
 fn queue_custom(
-    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
+    transparent_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
     custom_pipeline: Res<ParticleRenderPipeline>,
     msaa: Res<Msaa>,
     mut pipelines: ResMut<SpecializedMeshPipelines<ParticleRenderPipeline>>,
@@ -74,7 +73,7 @@ fn queue_custom(
         (Entity, &MeshUniform, &Handle<Mesh>),
         (With<Handle<Mesh>>, With<ParticleInstanceMaterialData>),
     >,
-    mut views: Query<(&ExtractedView, &mut RenderPhase<Transparent3d>)>,
+    mut views: Query<(&ExtractedView, &mut RenderPhase<Opaque3d>)>,
 ) {
     let draw_custom = transparent_3d_draw_functions
         .read()
@@ -93,7 +92,7 @@ fn queue_custom(
                 let pipeline = pipelines
                     .specialize(&mut pipeline_cache, &custom_pipeline, key, &mesh.layout)
                     .unwrap();
-                transparent_phase.add(Transparent3d {
+                transparent_phase.add(Opaque3d {
                     entity,
                     pipeline,
                     draw_function: draw_custom,
@@ -180,7 +179,7 @@ impl SpecializedMeshPipeline for ParticleRenderPipeline {
             self.mesh_pipeline.view_layout.clone(),
             self.mesh_pipeline.mesh_layout.clone(),
         ]);
-        descriptor.label = Some("drillhole_pipeline".into());
+        descriptor.label = Some("particles_pipeline".into());
 
         Ok(descriptor)
     }
@@ -219,7 +218,6 @@ impl EntityRenderCommand for DrawParticlesInstanced {
         pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
 
-        pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
         match &gpu_mesh.buffer_info {
             GpuBufferInfo::Indexed {
                 buffer,
@@ -238,5 +236,6 @@ impl EntityRenderCommand for DrawParticlesInstanced {
 }
 
 pub fn init_renderer(app: &mut App) {
-    app.add_plugin(PbrPlugin).add_plugin(ParticleMaterialPlugin);
+    app.add_plugin(bevy::pbr::PbrPlugin)
+        .add_plugin(ParticleMaterialPlugin);
 }
