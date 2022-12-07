@@ -1,7 +1,7 @@
 use crate::math::{Matrix, Real, DIM};
 use core::cmp::Ordering;
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]

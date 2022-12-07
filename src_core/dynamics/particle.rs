@@ -1,6 +1,6 @@
 use crate::math::{Matrix, Point, Real, Vector};
 use crate::utils::RealStruct;
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 /*

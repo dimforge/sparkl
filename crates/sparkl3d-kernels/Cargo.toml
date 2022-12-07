@@ -11,9 +11,6 @@ categories = [ "science", "game-development", "mathematics", "simulation", "wasm
 keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
 license = "Apache-2.0"
 edition = "2018"
-publish = false
-include = [ "../../resources/sparkl3d-kernels.ptx"]
-
 
 [badges]
 maintenance = { status = "actively-developed" }

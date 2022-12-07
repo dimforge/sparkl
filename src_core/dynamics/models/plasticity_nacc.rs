@@ -1,7 +1,7 @@
 use crate::math::{Matrix, Real, Vector, DIM};
 use na::vector;
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 /// The Non-Associated-Cam-Clay plasticity model.

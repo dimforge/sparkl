@@ -4,7 +4,7 @@ use crate::GpuParticleModel;
 use sparkl_core::dynamics::{ParticleStatus, ParticleVelocity, ParticleVolume};
 use sparkl_core::math::Real;
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 use sparkl_core::prelude::ActiveTimestepBounds;
 

@@ -1,6 +1,6 @@
 use crate::math::{Point, Real, Vector, DIM};
 use na::vector;
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 pub struct QuadraticKernel;

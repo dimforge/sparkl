@@ -1,7 +1,7 @@
 use crate::math::{DecomposedTensor, Matrix, Real, DIM};
 use na::SMatrix;
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 pub fn inv_exact(e: Real) -> Real {

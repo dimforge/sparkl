@@ -3,7 +3,7 @@ use na::vector;
 use sparkl_core::math::{Point, Real, Vector};
 
 use crate::cuda::{ActiveBlockHeader, AtomicAdd, GridHashMap, HaloState};
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 #[cfg(feature = "dim2")]

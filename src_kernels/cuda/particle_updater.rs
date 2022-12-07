@@ -5,7 +5,7 @@ use sparkl_core::prelude::{
     ParticleVolume,
 };
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 pub trait ParticleUpdater {

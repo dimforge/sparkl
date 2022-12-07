@@ -1,6 +1,6 @@
 use crate::math::{Matrix, Real, Vector, DIM};
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]

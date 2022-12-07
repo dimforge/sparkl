@@ -1,6 +1,6 @@
 use crate::math::{Matrix, Real, Vector};
 
-#[cfg(target_os = "cuda")]
+#[cfg(not(feature = "std"))]
 use na::ComplexField;
 
 /// The Snow plasticity model.
