@@ -1,5 +1,5 @@
 use crate::gpu_collider::{GpuCollider, GpuColliderSet};
-use crate::gpu_grid::{GpuGrid, GpuGridNode};
+use crate::gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus};
 use crate::BlockHeaderId;
 use cuda_std::thread;
 use cuda_std::*;
@@ -13,7 +13,6 @@ pub unsafe fn grid_update(
     mut next_grid: GpuGrid,
     colliders_ptr: *const GpuCollider,
     num_colliders: usize,
-    boundary_handling: BoundaryHandling,
     gravity: Vector<Real>,
 ) {
     let bid = BlockHeaderId(thread::block_idx_x());
@@ -47,7 +46,6 @@ pub unsafe fn grid_update(
             cell_pos.into(),
             cell_width,
             &collider_set,
-            boundary_handling,
             gravity,
         )
     }
@@ -59,60 +57,101 @@ fn update_single_cell(
     cell_pos: Point<Real>,
     cell_width: Real,
     colliders: &GpuColliderSet,
-    boundary_handling: BoundaryHandling,
     gravity: Vector<Real>,
 ) {
     let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
         * sparkl_core::utils::inv_exact(cell.mass);
 
-    // TODO: replace this by a proper boundary  handling.
-    for collider in colliders.iter() {
-        if let Some(proj) = collider.shape.project_point_with_max_dist(
-            &collider.position,
-            &cell_pos,
-            false,
-            cell_width * 2.0,
-        ) {
-            match boundary_handling {
+    if cell.projection_status == GpuGridProjectionStatus::NotComputed {
+        let mut best_proj = None;
+        for (i, collider) in colliders.iter().enumerate() {
+            if collider.grid_boundary_handling == BoundaryHandling::None {
+                continue;
+            }
+
+            if let Some(proj) = collider.shape.project_point_with_max_dist(
+                &collider.position,
+                &cell_pos,
+                false,
+                cell_width * 2.0,
+            ) {
+                let projection_scaled_dir = cell_pos - proj.point;
+                let projection_dist = projection_scaled_dir.norm();
+                if projection_dist < best_proj.map(|(_, dist, _, _)| dist).unwrap_or(Real::MAX) {
+                    best_proj = Some((projection_scaled_dir, projection_dist, proj.is_inside, i));
+                }
+            }
+        }
+
+        if let Some((scaled_dir, _, is_inside, id)) = best_proj {
+            cell.projection_status = if is_inside {
+                GpuGridProjectionStatus::Inside(id)
+            } else {
+                GpuGridProjectionStatus::Outside(id)
+            };
+            cell.projection_scaled_dir = scaled_dir;
+        } else {
+            cell.projection_status = GpuGridProjectionStatus::TooFar;
+        }
+    }
+
+    match cell.projection_status {
+        GpuGridProjectionStatus::Inside(collider_id)
+        | GpuGridProjectionStatus::Outside(collider_id) => {
+            let is_inside = matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
+            let collider = colliders.get(collider_id).unwrap();
+
+            match collider.grid_boundary_handling {
                 BoundaryHandling::Stick => {
-                    if proj.is_inside {
-                        cell_velocity.fill(0.0);
-                        break; // No need to detect other contact because we already have a zero velocity.
+                    if is_inside {
+                        cell_velocity = na::zero();
                     }
                 }
-                BoundaryHandling::Friction => {
+                BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
                     if let Some((mut normal, dist)) =
-                        Unit::try_new_and_get(cell_pos - proj.point, 1.0e-5)
+                        Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
                     {
-                        if proj.is_inside {
+                        if is_inside {
                             normal = -normal;
                         }
 
-                        let normal_vel = cell_velocity.dot(&normal);
+                        #[cfg(feature = "dim2")]
+                        let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
+                        #[cfg(feature = "dim3")]
+                        let apply_friction = collider.grid_boundary_handling
+                            == BoundaryHandling::Friction
+                            || (collider.grid_boundary_handling == BoundaryHandling::FrictionZUp
+                                && normal.z >= 0.0);
 
-                        if normal_vel < 0.0 {
-                            let dist_with_margin = dist - cell_width;
-                            if proj.is_inside || dist_with_margin <= 0.0 {
-                                let tangent_vel = cell_velocity - normal_vel * normal.into_inner();
-                                let tangent_vel_norm = tangent_vel.norm();
+                        if apply_friction {
+                            let normal_vel = cell_velocity.dot(&normal);
 
-                                cell_velocity = tangent_vel;
+                            if normal_vel < 0.0 {
+                                let dist_with_margin = dist - cell_width;
+                                if is_inside || dist_with_margin <= 0.0 {
+                                    let tangent_vel =
+                                        cell_velocity - normal_vel * normal.into_inner();
+                                    let tangent_vel_norm = tangent_vel.norm();
 
-                                if tangent_vel_norm > 1.0e-10 {
-                                    // Friction.
-                                    cell_velocity = tangent_vel / tangent_vel_norm
-                                        * (tangent_vel_norm + normal_vel * collider.friction)
-                                            .max(0.0);
+                                    cell_velocity = tangent_vel;
+
+                                    if tangent_vel_norm > 1.0e-10 {
+                                        let friction = collider.friction;
+                                        cell_velocity = tangent_vel / tangent_vel_norm
+                                            * (tangent_vel_norm + normal_vel * friction).max(0.0);
+                                    }
+                                } else if -normal_vel * dt > dist_with_margin {
+                                    cell_velocity -=
+                                        (dist_with_margin / dt + normal_vel) * normal.into_inner();
                                 }
-                            } else if -normal_vel * dt > dist_with_margin {
-                                cell_velocity -=
-                                    (dist_with_margin / dt + normal_vel) * normal.into_inner();
                             }
                         }
                     }
                 }
+                BoundaryHandling::None => {}
             }
         }
+        _ => {}
     }
 
     cell.momentum_velocity = cell_velocity;

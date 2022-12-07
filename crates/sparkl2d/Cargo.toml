@@ -11,7 +11,6 @@ categories = [ "science", "game-development", "mathematics", "simulation", "wasm
 keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
 license = "Apache-2.0"
 edition = "2018"
-publish = false
 include = [ "../../resources/sparkl2d-kernels.ptx"]
 
 
@@ -23,9 +22,6 @@ default = [ "dim2", "f32" ]
 dim2 = []
 f32 = []
 cuda = [ "cust", "sparkl2d-kernels" ]
-
-# Enable this feature in order to automatically rebuild the PTX kernels for Sparkl instead of using the prebuilt one.
-build-ptx = [ "cuda_builder" ]
 
 serde-serialize = [ "serde", "nalgebra/serde-serialize", "parry2d/serde-serialize", "rapier2d/serde-serialize",
                     "sparkl2d-core/serde-serialize"]
@@ -44,8 +40,8 @@ required-features = [ "dim2", "f32" ]
 [dependencies]
 sparkl2d-core = "0.1"
 nalgebra = "0.31"
-parry2d = "0.9"
-rapier2d = "0.12"
+parry2d = "0.11"
+rapier2d = "0.16"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"
@@ -65,9 +61,9 @@ memmap2 = "0.3"
 bytemuck = "1"
 
 # Third-party integration
-rapier_testbed2d = { version = "0.12", optional = true }
-bevy_egui = { version = "0.13", features = [ "multi_threaded" ], optional = true }
-bevy_ecs = { version = "0.7", optional = true }
+rapier_testbed2d = { version = "0.16", optional = true }
+bevy_egui = { version = "0.16", optional = true, features = [ "immutable_ctx" ] }
+bevy_ecs = { version = "0.8", optional = true }
 itertools = { version = "0.10", optional = true }
 
 # CUDA
@@ -75,7 +71,7 @@ cust = { version = "0.3", optional = true }
 sparkl2d-kernels = { version = "0.1", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.7", default-features = false, features = ["bevy_winit", "render", "x11"], optional = true }
+bevy = { version = "0.8", default-features = false, features = ["bevy_winit", "render", "x11"], optional = true }
 
 # Dependencies for WASM only.
 #[target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -84,6 +80,3 @@ bevy = { version = "0.7", default-features = false, features = ["bevy_winit", "r
 
 [dev-dependencies]
 oorandom = "11"
-
-[build-dependencies]
-cuda_builder = { version = "0.3", optional = true }

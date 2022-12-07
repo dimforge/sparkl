@@ -86,12 +86,13 @@ impl MlsSolver {
                     }
 
                     match boundary_handling {
+                        BoundaryHandling::None => {}
                         BoundaryHandling::Stick => {
                             if proj.is_inside {
                                 cell.velocity.fill(0.0);
                             }
                         }
-                        BoundaryHandling::Friction => {
+                        BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
                             if let Some((mut normal, dist)) =
                                 Unit::try_new_and_get(cell_pos - proj.point, 1.0e-5)
                             {

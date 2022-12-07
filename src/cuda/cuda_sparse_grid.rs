@@ -56,17 +56,19 @@ impl CudaSparseGrid {
         // SAFETY: Ok because 0 is a valid bit pattern for the GpuGridNode.
         let hashmap_init = vec![GridHashMapEntry::free(); block_capacity as usize];
         let cell_capacity = block_capacity as usize * NUM_CELL_PER_BLOCK as usize;
+        let grid_node_init = vec![GpuGridNode::default(); cell_capacity as usize];
+        let halo_block_init = vec![HaloBlockData::default(); block_capacity as usize];
 
         Ok(Self {
             cell_width,
             curr_data: CudaSparseGridData {
-                buffer: DeviceBuffer::zeroed(cell_capacity)?,
+                buffer: DeviceBuffer::from_slice(&grid_node_init)?,
                 active_blocks: DeviceBuffer::zeroed(block_capacity as usize)?,
                 packed_key_to_active_block: DeviceBuffer::from_slice(&hashmap_init)?,
                 block_capacity,
             },
             next_data: CudaSparseGridData {
-                buffer: DeviceBuffer::zeroed(cell_capacity)?,
+                buffer: DeviceBuffer::from_slice(&grid_node_init)?,
                 active_blocks: DeviceBuffer::zeroed(block_capacity as usize)?,
                 packed_key_to_active_block: DeviceBuffer::from_slice(&hashmap_init)?,
                 block_capacity,
@@ -82,8 +84,8 @@ impl CudaSparseGrid {
             scan_workspace: PrefixSumWorkspace::with_capacity(block_capacity as u32)?,
             halo_scan_workspace: PrefixSumWorkspace::with_capacity(block_capacity as u32)?,
             zero: DeviceBox::zeroed()?,
-            halo_blocks_staging: DeviceBuffer::zeroed(block_capacity as usize)?,
-            remote_halo_blocks: DeviceBuffer::zeroed(block_capacity as usize)?,
+            halo_blocks_staging: DeviceBuffer::from_slice(&halo_block_init)?,
+            remote_halo_blocks: DeviceBuffer::from_slice(&halo_block_init)?,
         })
     }
 
@@ -454,20 +456,23 @@ impl CudaSparseGrid {
             context.make_current()?;
             let desired_buffer_len = context.num_active_blocks * NUM_CELL_PER_BLOCK as u32;
             if context.grid.next_data.buffer.len() < desired_buffer_len as usize {
-                context.grid.next_data.buffer = DeviceBuffer::zeroed(desired_buffer_len as usize)?;
+                let grid_node_init = vec![GpuGridNode::default(); desired_buffer_len as usize];
+                context.grid.next_data.buffer = DeviceBuffer::from_slice(&grid_node_init)?;
             }
 
             if multigpu
                 && context.grid.remote_halo_blocks.len() < context.num_remote_halo_blocks as usize
             {
-                context.grid.remote_halo_blocks =
-                    DeviceBuffer::zeroed(context.num_remote_halo_blocks as usize)?;
+                let halo_block_init =
+                    vec![HaloBlockData::default(); context.num_remote_halo_blocks as usize];
+                context.grid.remote_halo_blocks = DeviceBuffer::from_slice(&halo_block_init)?;
             }
 
             if multigpu && context.grid.halo_blocks_staging.len() < context.num_halo_blocks as usize
             {
-                context.grid.halo_blocks_staging =
-                    DeviceBuffer::zeroed(context.num_halo_blocks as usize)?;
+                let halo_block_init =
+                    vec![HaloBlockData::default(); context.num_halo_blocks as usize];
+                context.grid.halo_blocks_staging = DeviceBuffer::from_slice(&halo_block_init)?;
             }
         }
 

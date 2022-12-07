@@ -221,7 +221,7 @@ impl MpmTestbedPlugin {
                     let grid = CudaSparseGrid::new(cell_width).ok()?;
                     let colliders = boundaries
                         .as_ref()
-                        .and_then(|b| CudaColliderSet::from_collider_set(b).ok());
+                        .and_then(|b| CudaColliderSet::from_collider_set(b, vec![]).ok());
                     let timestep_length = DeviceBox::new(&GpuTimestepLength::default()).ok()?;
                     let module = CudaMpmPipeline::load_module().unwrap();
 
@@ -457,7 +457,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                 log::info!("Initializing {} cuda colliders.", physics.colliders.len());
                 cuda_data.make_current().unwrap();
                 cuda_data.colliders = Some(
-                    CudaColliderSet::from_collider_set(&physics.colliders)
+                    CudaColliderSet::from_collider_set(&physics.colliders, vec![])
                         .expect("Failed to initialize the CUDA colliders."),
                 );
             }

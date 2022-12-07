@@ -1,4 +1,4 @@
-use crate::GpuParticleModel;
+use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
@@ -9,6 +9,10 @@ use sparkl_core::prelude::{
 use na::ComplexField;
 
 pub trait ParticleUpdater {
+    fn artificial_pressure_stiffness(&self) -> f32 {
+        0.0
+    }
+
     unsafe fn estimate_particle_timestep_length(
         &self,
         cell_width: Real,
@@ -22,17 +26,15 @@ pub trait ParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
+        colliders: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        velocity_gradient: &mut Matrix<Real>,
-        velocity: Vector<Real>,
-        velocity_gradient_det: Real,
-        psi_pos: Real,
-    ) -> Option<Matrix<Real>>;
+        interpolated_data: &mut InterpolatedParticleData,
+    ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
 
 pub struct DefaultParticleUpdater {
@@ -72,20 +74,18 @@ impl ParticleUpdater for DefaultParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
+        colliders: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        velocity_gradient: &mut Matrix<Real>,
-        velocity: Vector<Real>,
-        velocity_gradient_det: Real,
-        _psi_pos: Real,
-    ) -> Option<Matrix<Real>> {
+        interpolated_data: &mut InterpolatedParticleData,
+    ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
 
-        particle_vel.vector = velocity;
+        particle_vel.vector = interpolated_data.velocity;
 
         let is_fluid = model.constitutive_model.is_fluid();
 
@@ -95,11 +95,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
         // TODO: move this to a new failure model?
         // if damage_model == DamageModel::ModifiedEigenerosion
         //     && particle.crack_propagation_factor != 0.0
-        //     && particle_status.phase > 0.0
+        //     && particle_phase.phase > 0.0
         // {
         //     let crack_energy = particle.crack_propagation_factor * cell_width * psi_pos_momentum;
         //     if crack_energy > particle.crack_threshold {
-        //         particle_status.phase = 0.0;
+        //         particle_phase.phase = 0.0;
         //     }
         // }
 
@@ -127,10 +127,11 @@ impl ParticleUpdater for DefaultParticleUpdater {
          */
         if !is_fluid {
             particle_volume.deformation_gradient +=
-                (*velocity_gradient * dt) * particle_volume.deformation_gradient;
+                (interpolated_data.velocity_gradient * dt) * particle_volume.deformation_gradient;
         } else {
             particle_volume.deformation_gradient[(0, 0)] +=
-                (velocity_gradient_det * dt) * particle_volume.deformation_gradient[(0, 0)];
+                (interpolated_data.velocity_gradient_det * dt)
+                    * particle_volume.deformation_gradient[(0, 0)];
             model
                 .constitutive_model
                 .update_internal_energy_and_pressure(
@@ -138,17 +139,17 @@ impl ParticleUpdater for DefaultParticleUpdater {
                     particle_volume,
                     dt,
                     cell_width,
-                    &velocity_gradient,
+                    &interpolated_data.velocity_gradient,
                 );
         }
 
         if let Some(plasticity) = &model.plastic_model {
-            plasticity.update_particle(particle_id, particle_volume, particle_status.phase);
+            plasticity.update_particle(particle_id, particle_volume, particle_phase.phase);
         }
 
         if particle_status.is_static {
             particle_vel.vector.fill(0.0);
-            velocity_gradient.fill(0.0);
+            interpolated_data.velocity_gradient.fill(0.0);
         }
 
         if particle_volume.density_def_grad() == 0.0
@@ -172,7 +173,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
             let energy = model.constitutive_model.pos_energy(
                 particle_id,
                 particle_volume,
-                particle_status.phase,
+                particle_phase.phase,
             );
             particle_phase.psi_pos = particle_phase.psi_pos.max(energy);
         }
@@ -186,43 +187,51 @@ impl ParticleUpdater for DefaultParticleUpdater {
                 let stress = model.constitutive_model.kirchhoff_stress(
                     particle_id,
                     particle_volume,
-                    particle_status.phase,
-                    &velocity_gradient,
+                    particle_phase.phase,
+                    &interpolated_data.velocity_gradient,
                 );
                 if failure_model.particle_failed(&stress) {
-                    particle_status.phase = 0.0;
+                    particle_phase.phase = 0.0;
                 }
             }
         }
 
-        // /*
-        //  * Particle projection.
-        //  * TODO: refactor to its own function.
-        //  */
-        // if enable_boundary_particle_projection {
-        //     for (_, collider) in rigid_world.colliders.iter() {
-        //         let proj =
-        //             collider
-        //                 .shape()
-        //                 .project_point(collider.position(), &particle_pos_vel.position, false);
-        //
-        //         if proj.is_inside {
-        //             particle.velocity += (proj.point - particle_pos_vel.position) / dt;
-        //             particle_pos_vel.position = proj.point;
-        //         }
-        //     }
-        // }
+        /*
+         * Particle projection.
+         * TODO: refactor to its own function.
+         */
+        let mut penalty_force = Vector::zeros();
+        if false {
+            // enable_boundary_particle_projection {
+            for collider in colliders.iter() {
+                if collider.penalty_stiffness > 0.0 {
+                    if let Some(proj) = collider.shape.project_point_with_max_dist(
+                        &collider.position,
+                        &particle_pos.point,
+                        false,
+                        100.0 * cell_width,
+                    ) {
+                        if proj.is_inside {
+                            penalty_force +=
+                                (proj.point - particle_pos.point) * collider.penalty_stiffness;
+                        }
+                    }
+                }
+            }
+        }
 
         // MPM-MLS: the APIC affine matrix and the velocity gradient are the same.
         if !particle_status.failed {
-            Some(model.constitutive_model.kirchhoff_stress(
+            let stress = model.constitutive_model.kirchhoff_stress(
                 particle_id,
                 particle_volume,
-                particle_status.phase,
-                &velocity_gradient,
-            ))
+                particle_phase.phase,
+                &interpolated_data.velocity_gradient,
+            );
+
+            Some((stress, penalty_force))
         } else {
-            Some(Matrix::zeros())
+            Some((Matrix::zeros(), Vector::zeros()))
         }
     }
 }

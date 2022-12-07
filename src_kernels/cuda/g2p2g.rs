@@ -1,7 +1,10 @@
 use crate::cuda::atomic::{AtomicAdd, AtomicInt};
 use crate::cuda::{DefaultParticleUpdater, ParticleUpdater};
-use crate::gpu_grid::GpuGrid;
-use crate::{BlockVirtualId, GpuParticleModel, NBH_SHIFTS, NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK};
+use crate::gpu_grid::{GpuGrid, GpuGridProjectionStatus};
+use crate::{
+    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NBH_SHIFTS, NBH_SHIFTS_SHARED,
+    NUM_CELL_PER_BLOCK,
+};
 use cuda_std::thread;
 use cuda_std::*;
 use nalgebra::vector;
@@ -17,12 +20,15 @@ const NUM_SHARED_CELLS: usize = (4 * 4 * 4) * (2 * 2 * 2);
 const FREE: u32 = u32::MAX;
 
 struct GridGatherData {
+    prev_mass: Real,
     mass: Real,
     momentum: Vector<Real>,
     velocity: Vector<Real>,
     psi_mass: Real,
     psi_momentum: Real,
     psi_velocity: Real,
+    projection_scaled_dir: Vector<Real>,
+    projection_status: GpuGridProjectionStatus,
     // NOTE: right now we are using a manually implemented lock, based on
     // integer atomics exchange, to avoid float atomics on shared memory
     // which are super slow.
@@ -33,9 +39,33 @@ struct GridGatherData {
     lock: u32,
 }
 
+pub struct InterpolatedParticleData {
+    pub velocity: Vector<Real>,
+    pub velocity_gradient: Matrix<Real>,
+    pub psi_pos_momentum: Real,
+    pub velocity_gradient_det: Real,
+    pub projection_scaled_dir: Vector<Real>,
+    pub projection_status: GpuGridProjectionStatus,
+}
+
+impl Default for InterpolatedParticleData {
+    fn default() -> Self {
+        Self {
+            velocity: na::zero(),
+            velocity_gradient: na::zero(),
+            psi_pos_momentum: na::zero(),
+            velocity_gradient_det: na::zero(),
+            projection_scaled_dir: na::zero(),
+            projection_status: GpuGridProjectionStatus::NotComputed,
+        }
+    }
+}
+
 #[kernel]
 pub unsafe fn g2p2g(
     dt: Real,
+    colliders_ptr: *const GpuCollider,
+    num_colliders: usize,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -50,6 +80,8 @@ pub unsafe fn g2p2g(
 ) {
     g2p2g_generic(
         dt,
+        colliders_ptr,
+        num_colliders,
         particles_status,
         particles_pos,
         particles_vel,
@@ -67,6 +99,8 @@ pub unsafe fn g2p2g(
 // This MUST be called with a block size equal to G2P2G_THREADS
 pub unsafe fn g2p2g_generic(
     dt: Real,
+    colliders_ptr: *const GpuCollider,
+    num_colliders: usize,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -88,6 +122,11 @@ pub unsafe fn g2p2g_generic(
         next_grid.dispatch_halo_block_to_active_block
     } else {
         next_grid.dispatch_block_to_active_block
+    };
+
+    let collider_set = GpuColliderSet {
+        ptr: colliders_ptr,
+        len: num_colliders,
     };
 
     let dispatch_block_to_active_block = *dispatch2active.as_ptr().add(bid as usize);
@@ -113,6 +152,7 @@ pub unsafe fn g2p2g_generic(
         particle_g2p2g(
             dt,
             particle_id,
+            &collider_set,
             &mut particle_status_i,
             &mut particle_pos_i,
             &mut particle_vel_i,
@@ -139,6 +179,7 @@ pub unsafe fn g2p2g_generic(
 unsafe fn particle_g2p2g(
     dt: Real,
     particle_id: u32,
+    colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_vel: &mut ParticleVelocity,
@@ -155,10 +196,7 @@ unsafe fn particle_g2p2g(
     let ref_elt_pos_minus_particle_pos = particle_pos.dir_to_associated_grid_node(cell_width);
 
     // APIC grid-to-particle transfer.
-    let mut velocity = Vector::zeros();
-    let mut velocity_gradient = Matrix::zeros();
-    let mut velocity_gradient_det = 0.0;
-    let mut psi_pos_momentum = 0.0;
+    let mut interpolated_data = InterpolatedParticleData::default();
 
     let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
@@ -173,6 +211,15 @@ unsafe fn particle_g2p2g(
         + (assoc_cell_index_in_block.y + 1) * 8
         + (assoc_cell_index_in_block.z + 1) * 8 * 8;
 
+    let midcell_mass = {
+        let midcell = &*shared_nodes
+            .add(packed_cell_index_in_block as usize + NBH_SHIFTS_SHARED.last().unwrap());
+        midcell.prev_mass
+    };
+
+    let artificial_pressure_stiffness = particle_updater.artificial_pressure_stiffness();
+    let mut artificial_pressure_force = Vector::zeros();
+
     for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
         let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
         #[cfg(feature = "dim2")]
@@ -181,35 +228,65 @@ unsafe fn particle_g2p2g(
         let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 
         let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
-        velocity += weight * cell.velocity;
-        velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
-        psi_pos_momentum += weight * cell.psi_velocity;
-        velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+        interpolated_data.velocity += weight * cell.velocity;
+        interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
+        interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
+        interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+
+        // TODO: should this artificial pressure thing be part of another crate instead of the
+        // "main" g2p2g kernel?
+        if artificial_pressure_stiffness != 0.0
+            && !particle_status.is_static
+            && cell.projection_status.is_outside()
+        {
+            artificial_pressure_force +=
+                weight * (midcell_mass - cell.prev_mass) * dpt * artificial_pressure_stiffness;
+        }
     }
 
-    if let Some(stress) = particle_updater.update_particle_and_compute_kirchhoff_stress(
+    {
+        let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
+        let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
+        let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
+        let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+
+        let proj_norm = cell.projection_scaled_dir.norm();
+
+        if proj_norm > 1.0e-5 {
+            let normal = cell.projection_scaled_dir / proj_norm;
+            interpolated_data.projection_scaled_dir =
+                cell.projection_scaled_dir - normal * dpt.dot(&normal);
+
+            if interpolated_data.projection_scaled_dir.dot(&normal) < 0.0 {
+                interpolated_data.projection_status = cell.projection_status.flip();
+            } else {
+                interpolated_data.projection_status = cell.projection_status;
+            }
+        }
+    }
+
+    if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
         dt,
         cell_width,
+        colliders,
         particle_id,
         particle_status,
         particle_pos,
         particle_vel,
         particle_volume,
         particle_phase,
-        &mut velocity_gradient,
-        velocity,
-        velocity_gradient_det,
-        psi_pos_momentum,
+        &mut interpolated_data,
     ) {
         let inv_d = Kernel::inv_d(cell_width);
         let ref_elt_pos_minus_particle_pos = particle_pos.dir_to_associated_grid_node(cell_width);
         let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
-        let affine = particle_volume.mass * velocity_gradient
+        let affine = particle_volume.mass * interpolated_data.velocity_gradient
             - (particle_volume.volume0 * inv_d * dt) * stress;
-        let momentum = particle_volume.mass * particle_vel.vector;
+        let momentum =
+            particle_volume.mass * particle_vel.vector + (force + artificial_pressure_force) * dt;
 
-        let psi_mass = if particle_status.phase > 0.0 && !particle_status.failed {
+        let psi_mass = if particle_phase.phase > 0.0 && !particle_status.failed {
             particle_volume.mass
         } else {
             0.0
@@ -344,9 +421,15 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             if let Some(global_node) = curr_grid.get_node(id_in_global) {
                 shared_node.velocity = global_node.momentum_velocity;
                 shared_node.psi_velocity = global_node.psi_momentum_velocity;
+                shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
+                shared_node.projection_status = global_node.projection_status;
+                shared_node.prev_mass = global_node.prev_mass;
             } else {
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
+                shared_node.projection_scaled_dir = na::zero();
+                shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
+                shared_node.prev_mass = 0.0;
             }
 
             shared_node.psi_momentum = 0.0;
@@ -382,6 +465,9 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             shared_node.psi_mass = 0.0;
             shared_node.momentum.fill(0.0);
             shared_node.mass = 0.0;
+            shared_node.prev_mass = 0.0;
+            shared_node.projection_scaled_dir = na::zero();
+            shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
             shared_node.lock = FREE;
         }
     }

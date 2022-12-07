@@ -20,6 +20,8 @@ bitflags::bitflags! {
 pub enum BoundaryHandling {
     Stick,
     Friction,
+    FrictionZUp, // A bit of a hack until we have a more generic solution
+    None,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

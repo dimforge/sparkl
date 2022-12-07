@@ -31,8 +31,8 @@ required-features = [ "dim2", "f64" ]
 
 [dependencies]
 nalgebra = "0.31.0"
-parry2d-f64 = "0.9"
-rapier2d-f64 = "0.12.0-alpha.0"
+parry2d-f64 = "0.11"
+rapier2d-f64 = "0.16"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"

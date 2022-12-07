@@ -6,13 +6,13 @@ edition = "2018"
 default-run = "examples3d"
 
 [features]
-cuda = [ "sparkl3d/cuda", "sparkl3d/build-ptx" ]
+cuda = [ "sparkl3d/cuda" ]
 
 [dependencies]
 Inflector  = "0.11"
 nalgebra = "0.31"
-rapier_testbed3d = "0.12"
-rapier3d = "0.12"
+rapier_testbed3d = "0.16"
+rapier3d = "0.16"
 oorandom = "11"
 serde = { version = "1", features = [ "derive" ]}
 serde_json = { version = "1", features = [ "preserve_order" ] }

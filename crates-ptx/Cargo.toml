@@ -1,0 +1,11 @@
+[workspace]
+members = [ "./sparkl3d-core-ptx", "./gen-ptx", "./sparkl3d-kernels-ptx", "./sparkl2d-core-ptx", "./sparkl2d-kernels-ptx" ]
+resolver = "2"
+[patch.crates-io]
+sparkl3d-core = { path = "./sparkl3d-core-ptx" }
+sparkl3d-kernels = { path = "./sparkl3d-kernels-ptx" }
+sparkl2d-core = { path = "./sparkl2d-core-ptx" }
+sparkl2d-kernels = { path = "./sparkl2d-kernels-ptx" }
+
+[profile.release]
+#codegen-units = 1

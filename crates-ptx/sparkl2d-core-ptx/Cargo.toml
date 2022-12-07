@@ -1,5 +1,5 @@
 [package]
-name    = "sparkl2d-kernels"
+name    = "sparkl2d-core"
 version = "0.1.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
@@ -21,19 +21,29 @@ default = [ "dim2", "f32" ]
 dim2 = []
 f32 = []
 
+serde-serialize = [ "serde", "nalgebra/serde-serialize" ]
+cuda = [ "cust", "cust_core" ]
+
+
 [lib]
-path = "../../src_kernels/lib.rs"
+path = "../../src_core/lib.rs"
 required-features = [ "dim2", "f32" ]
-crate-type = ["cdylib", "rlib"]
+
 
 
 [dependencies]
-nalgebra = { version = "0.31", default-features = false, features = [ "bytemuck", "cuda" ] }
-sparkl2d-core = { version = "0.1", features = [ "cuda" ] }
-cuda_std = "0.2"
+nalgebra = { version = "0.31", default-features = false, features = [ "macros", "libm", "bytemuck" ] }
+bitflags = "1"
 bytemuck = { version = "1", features = [ "derive" ] }
-parry2d = { version = "0.11", default-features = false, features = [ "required-features", "cuda" ] }
-cust_core = "0.1"
+cust_core = { version = "0.1", optional = true }
+
+# Serialization
+serde = { version = "1.0", optional = true, features = [ "derive" ]}
+
 
 [target.'cfg(not(target_os = "cuda"))'.dependencies]
-cust = "0.3"
+cust = { version = "0.3", optional = true }
+
+
+[dev-dependencies]
+oorandom = "11"

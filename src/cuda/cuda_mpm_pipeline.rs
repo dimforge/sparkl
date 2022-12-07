@@ -226,6 +226,11 @@ impl ContextEvents {
     }
 }
 
+pub struct StepDetails {
+    pub simulated_time: Real,
+    pub num_substeps: u32,
+}
+
 impl<'a> SingleGpuMpmContext<'a> {
     pub fn make_current(&self) -> CudaResult<()> {
         cust::context::CurrentContext::set_current(&self.context)
@@ -365,6 +370,9 @@ impl CudaMpmPipeline {
 
                     launch!(
                         module.reset_grid<<<num_active_blocks, blk_threads, 0, stream>>>(context.grid.next_device_elements())
+                    )?;
+                    launch!(
+                        module.copy_grid_projection_data<<<num_active_blocks, blk_threads, 0, stream>>>(context.grid.curr_device_elements(), context.grid.next_device_elements())
                     )?;
 
                     events[i].reset_grid.stop(stream)?;
@@ -540,7 +548,6 @@ impl CudaMpmPipeline {
                             context.grid.next_device_elements(),
                             coll_ptr,
                             coll_len,
-                            params.boundary_handling,
                             *gravity,
                         )
                     )?;

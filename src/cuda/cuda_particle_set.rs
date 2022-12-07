@@ -216,7 +216,6 @@ pub fn extract_particles_components(particles: &[Particle]) -> ParticleComponent
             kinematic_vel_enabled: p.kinematic_vel.is_some(),
             kinematic_vel: p.kinematic_vel.unwrap_or(na::zero()),
             model_index: p.model.into_raw_parts().0 as usize,
-            phase: p.phase,
         })
         .collect();
 
