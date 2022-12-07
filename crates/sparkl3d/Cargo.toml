@@ -11,8 +11,7 @@ categories = [ "science", "game-development", "mathematics", "simulation", "wasm
 keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
 license = "Apache-2.0"
 edition = "2018"
-publish = false
-
+include = [ "../../resources/sparkl2d-kernels.ptx"]
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -22,9 +21,6 @@ default = [ "dim3", "f32" ]
 dim3 = []
 f32 = []
 cuda = [ "cust", "sparkl3d-kernels" ]
-
-# Enable this feature in order to automatically rebuild the PTX kernels for Sparkl instead of using the prebuilt one.
-build-ptx = [ "cuda_builder" ]
 
 serde-serialize = [ "serde", "nalgebra/serde-serialize", "parry3d/serde-serialize", "rapier3d/serde-serialize",
                     "sparkl3d-core/serde-serialize" ]
@@ -83,6 +79,3 @@ bevy = { version = "0.8", default-features = false, features = ["bevy_winit", "r
 
 [dev-dependencies]
 oorandom = "11"
-
-[build-dependencies]
-cuda_builder = { version = "0.3", optional = true }
