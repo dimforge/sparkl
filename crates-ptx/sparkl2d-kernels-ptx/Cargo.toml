@@ -28,11 +28,11 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-nalgebra = { version = "0.31", default-features = false, features = [ "bytemuck", "cuda" ] }
+nalgebra = { version = "0.32", default-features = false, features = [ "bytemuck", "cuda" ] }
 sparkl2d-core = { version = "0.1", features = [ "cuda" ] }
 cuda_std = "0.2"
 bytemuck = { version = "1", features = [ "derive" ] }
-parry2d = { version = "0.11", default-features = false, features = [ "required-features", "cuda" ] }
+parry2d = { version = "0.13", default-features = false, features = [ "required-features", "cuda" ] }
 cust_core = "0.1"
 
 [target.'cfg(not(target_os = "cuda"))'.dependencies]

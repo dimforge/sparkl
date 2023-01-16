@@ -383,8 +383,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         #[cfg(feature = "dim3")]
         {
             let entity = _commands
-                .spawn()
-                .insert_bundle((
+                .spawn((
                     _meshes.add(Mesh::from(shape::Icosphere {
                         radius: 1.0,
                         subdivisions: 5,

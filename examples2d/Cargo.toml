@@ -10,16 +10,21 @@ cuda = [ "sparkl2d/cuda" ]
 
 [dependencies]
 Inflector  = "0.11"
-nalgebra = "0.31"
-rapier_testbed2d = "0.16"
-rapier2d = "0.16"
+nalgebra = "0.32"
+rapier_testbed2d = "0.17"
+rapier2d = "0.17"
 oorandom = "11"
+serde = { version = "1", features = [ "derive" ]}
+serde_json = { version = "1", features = [ "preserve_order" ] }
+bincode = "1"
+indexmap = { version = "1", features = [ "serde" ] }
+uuid = "1"
+env_logger = "0.10"
 log = "0.4"
-env_logger = "0.9"
 
 [dependencies.sparkl2d]
 path = "../crates/sparkl2d"
-features = [ "rapier-testbed", "serde-serialize", "cuda" ]
+features = [ "rapier-testbed", "serde-serialize" ]
 
 [[bin]]
 name = "examples2d"

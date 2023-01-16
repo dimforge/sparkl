@@ -32,7 +32,7 @@ required-features = [ "dim3", "f32" ]
 
 
 [dependencies]
-nalgebra = { version = "0.31", default-features = false, features = [ "macros", "libm", "bytemuck" ] }
+nalgebra = { version = "0.32", default-features = false, features = [ "macros", "libm", "bytemuck" ] }
 bitflags = "1"
 bytemuck = { version = "1", features = [ "derive" ] }
 cust_core = { version = "0.1", optional = true }

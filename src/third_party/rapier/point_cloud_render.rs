@@ -127,6 +127,7 @@ fn prepare_instance_buffers(
     }
 }
 
+#[derive(Resource)]
 pub struct ParticleRenderPipeline {
     shader: Handle<Shader>,
     mesh_pipeline: MeshPipeline,
@@ -136,7 +137,7 @@ impl FromWorld for ParticleRenderPipeline {
     fn from_world(world: &mut World) -> Self {
         let world = world.cell();
         let asset_server = world.get_resource::<AssetServer>().unwrap();
-        asset_server.watch_for_changes().unwrap();
+        // asset_server.watch_for_changes().unwrap();
         let mesh_pipeline = world.get_resource::<MeshPipeline>().unwrap();
 
         ParticleRenderPipeline {
@@ -236,6 +237,5 @@ impl EntityRenderCommand for DrawParticlesInstanced {
 }
 
 pub fn init_renderer(app: &mut App) {
-    app.add_plugin(bevy::pbr::PbrPlugin)
-        .add_plugin(ParticleMaterialPlugin);
+    app.add_plugin(ParticleMaterialPlugin);
 }
