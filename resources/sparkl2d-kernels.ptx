@@ -14,8 +14,8 @@
 .func _ZN4core6result13unwrap_failed17ha84c04ab95b75c50E
 ()
 .noreturn ;
-// _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E has been demoted
-// _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hea3038eea41342bdE has been demoted
+// _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E has been demoted
+// _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h1f773b50ba2bbc70E has been demoted
 .global .align 4 .b8 __cudart_i2opi_f[24] = {65, 144, 67, 60, 153, 149, 98, 219, 192, 221, 52, 245, 209, 87, 39, 252, 41, 21, 68, 78, 110, 131, 249, 162};
 
 .visible .entry g2p2g(
@@ -45,7 +45,7 @@
 	.reg .f64 	%fd<27>;
 	.reg .b64 	%rd<1395>;
 	// demoted variable
-	.shared .align 8 .b8 _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E[4096];
+	.shared .align 8 .b8 _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E[4096];
 
 	mov.u64 	%SPL, __local_depot0;
 	cvta.local.u64 	%SP, %SPL;
@@ -182,7 +182,7 @@ $L__BB0_12:
 	shl.b64 	%rd388, %rd387, 3;
 	or.b64  	%rd389, %rd386, %rd388;
 	shl.b64 	%rd390, %rd389, 6;
-	mov.u64 	%rd391, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd391, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	mov.u64 	%rd392, 0;
 	add.s64 	%rd393, %rd391, %rd390;
 	st.shared.u64 	[%rd393+32], %rd392;
@@ -226,7 +226,7 @@ $L__BB0_15:
 	shl.b64 	%rd404, %rd403, 3;
 	or.b64  	%rd405, %rd30, %rd404;
 	shl.b64 	%rd406, %rd405, 6;
-	mov.u64 	%rd407, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd407, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	mov.u64 	%rd408, 0;
 	add.s64 	%rd409, %rd407, %rd406;
 	st.shared.u64 	[%rd409+32], %rd408;
@@ -324,7 +324,7 @@ $L__BB0_17:
 	or.b64  	%rd54, %rd441, %rd442;
 	setp.gt.u64 	%p43, %rd348, %rd54;
 	shl.b64 	%rd443, %rd440, 6;
-	mov.u64 	%rd444, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd444, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd55, %rd444, %rd443;
 	@%p43 bra 	$L__BB0_20;
 	bra.uni 	$L__BB0_19;
@@ -374,7 +374,7 @@ $L__BB0_22:
 	setp.ge.u64 	%p44, %rd431, %rd50;
 	@%p44 bra 	$L__BB0_31;
 
-	mov.u64 	%rd466, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd466, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	mov.u32 	%r335, 0;
 	mov.f32 	%f986, 0f00000000;
 	mov.u32 	%r336, -1;
@@ -1531,7 +1531,7 @@ $L__BB0_104:
 	mul.f32 	%f1520, %f58, %f1507;
 	shl.b64 	%rd534, %rd66, 6;
 	and.b64  	%rd535, %rd534, 274877906880;
-	mov.u64 	%rd536, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd536, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd537, %rd536, %rd535;
 	ld.shared.u64 	%rd538, [%rd537+1184];
 	cvt.u32.u64 	%r451, %rd538;
@@ -9470,7 +9470,7 @@ $L__BB0_604:
 	selp.f32 	%f5634, 0fFF800000, 0f7F800000, %p23;
 
 $L__BB0_607:
-	mov.u64 	%rd1233, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1233, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	ld.param.f32 	%f5180, [g2p2g_param_11];
 	add.f32 	%f5179, %f5180, %f5180;
 	ld.param.f32 	%f5178, [g2p2g_param_0];
@@ -9545,7 +9545,7 @@ $L__BB0_608:
 
 	ld.param.f32 	%f5216, [g2p2g_param_11];
 	mul.f32 	%f5215, %f5216, 0f00000000;
-	mov.u64 	%rd1234, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1234, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	mul.f32 	%f5011, %f896, %f936;
 	mul.f32 	%f950, %f938, %f945;
 	mul.f32 	%f951, %f940, %f947;
@@ -9949,7 +9949,7 @@ $L__BB0_637:
 	mul.lo.s64 	%rd1130, %rd302, 48;
 	add.s64 	%rd1121, %rd349, %rd1130;
 	shl.b64 	%rd1131, %rd301, 6;
-	mov.u64 	%rd1132, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1132, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd1133, %rd1132, %rd1131;
 	ld.shared.u32 	%r1696, [%rd1133+20];
 	// begin inline asm
@@ -10024,7 +10024,7 @@ $L__BB0_642:
 	shl.b64 	%rd1159, %rd1158, 3;
 	or.b64  	%rd1160, %rd305, %rd1159;
 	shl.b64 	%rd1161, %rd1160, 6;
-	mov.u64 	%rd1162, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1162, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd1163, %rd1162, %rd1161;
 	ld.shared.u32 	%r1701, [%rd1163+20];
 	// begin inline asm
@@ -10067,7 +10067,7 @@ $L__BB0_644:
 	shl.b64 	%rd1180, %rd1179, 3;
 	or.b64  	%rd1181, %rd307, %rd1180;
 	shl.b64 	%rd1182, %rd1181, 6;
-	mov.u64 	%rd1183, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1183, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd1184, %rd1183, %rd1182;
 	ld.shared.u32 	%r1706, [%rd1184+20];
 	// begin inline asm
@@ -10110,7 +10110,7 @@ $L__BB0_646:
 	shl.b64 	%rd1201, %rd1200, 3;
 	or.b64  	%rd1202, %rd309, %rd1201;
 	shl.b64 	%rd1203, %rd1202, 6;
-	mov.u64 	%rd1204, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1204, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd1205, %rd1204, %rd1203;
 	ld.shared.u32 	%r1711, [%rd1205+20];
 	// begin inline asm
@@ -10154,7 +10154,7 @@ $L__BB0_648:
 	shl.b64 	%rd1222, %rd1221, 3;
 	or.b64  	%rd1223, %rd311, %rd1222;
 	shl.b64 	%rd1224, %rd1223, 6;
-	mov.u64 	%rd1225, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17he0fba66902f3e524E;
+	mov.u64 	%rd1225, _ZN16sparkl2d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17h86f513edd992d572E;
 	add.s64 	%rd1226, %rd1225, %rd1224;
 	ld.shared.u32 	%r1716, [%rd1226+20];
 	// begin inline asm
@@ -13553,7 +13553,7 @@ $L__BB3_2:
 	.reg .b32 	%r<22>;
 	.reg .b64 	%rd<63>;
 	// demoted variable
-	.shared .align 4 .b8 _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hea3038eea41342bdE[2048];
+	.shared .align 4 .b8 _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h1f773b50ba2bbc70E[2048];
 
 	ld.param.u64 	%rd20, [prefix_sum_512_param_0];
 	ld.param.u32 	%r5, [prefix_sum_512_param_1];
@@ -13591,7 +13591,7 @@ $L__BB3_2:
 
 $L__BB4_3:
 	shl.b64 	%rd32, %rd5, 2;
-	mov.u64 	%rd33, _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hea3038eea41342bdE;
+	mov.u64 	%rd33, _ZN16sparkl2d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h1f773b50ba2bbc70E;
 	add.s64 	%rd7, %rd33, %rd32;
 	st.shared.u32 	[%rd7], %r21;
 	shr.u64 	%rd62, %rd3, 1;

@@ -1,6 +1,6 @@
 [package]
 name    = "gen-ptx"
-version = "0.1.0"
+version = "0.2.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/sparkl3d"

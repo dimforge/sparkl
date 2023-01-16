@@ -14,10 +14,10 @@
 .func _ZN4core6result13unwrap_failed17ha84c04ab95b75c50E
 ()
 .noreturn ;
-// _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E has been demoted
+// _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E has been demoted
 .global .align 8 .b8 alloc899[648] = {2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0};
 .global .align 8 .b8 alloc902[216] = {146, 0, 0, 0, 0, 0, 0, 0, 130, 0, 0, 0, 0, 0, 0, 0, 138, 0, 0, 0, 0, 0, 0, 0, 144, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 136, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 129, 0, 0, 0, 0, 0, 0, 0, 137, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 0, 0, 0, 0, 0, 66, 0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 81, 0, 0, 0, 0, 0, 0, 0, 65, 0, 0, 0, 0, 0, 0, 0, 73, 0, 0, 0, 0, 0, 0, 0};
-// _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hed9c0b7caf8e7933E has been demoted
+// _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h394108250712d51dE has been demoted
 .global .align 4 .b8 __cudart_i2opi_f[24] = {65, 144, 67, 60, 153, 149, 98, 219, 192, 221, 52, 245, 209, 87, 39, 252, 41, 21, 68, 78, 110, 131, 249, 162};
 
 .visible .entry g2p2g(
@@ -47,7 +47,7 @@
 	.reg .f64 	%fd<3>;
 	.reg .b64 	%rd<6675>;
 	// demoted variable
-	.shared .align 8 .b8 _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E[40960];
+	.shared .align 8 .b8 _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E[40960];
 
 	mov.u64 	%SPL, __local_depot0;
 	cvta.local.u64 	%SP, %SPL;
@@ -199,7 +199,7 @@ $L__BB0_12:
 	or.b64  	%rd2201, %rd2195, %rd2200;
 	or.b64  	%rd2202, %rd2201, %rd2199;
 	mul.lo.s64 	%rd2203, %rd2202, 80;
-	mov.u64 	%rd2204, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd2204, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	mov.u64 	%rd2205, 0;
 	mov.b64 	%rd2206, {%r391, %r391};
 	shr.u64 	%rd2207, %rd2206, 32;
@@ -250,7 +250,7 @@ $L__BB0_15:
 	or.b64  	%rd2222, %rd39, %rd2221;
 	or.b64  	%rd2223, %rd2222, %rd2220;
 	mul.lo.s64 	%rd2224, %rd2223, 80;
-	mov.u64 	%rd2225, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd2225, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	mov.u64 	%rd2226, 0;
 	add.s64 	%rd2227, %rd2225, %rd2224;
 	st.shared.u32 	[%rd2227+44], %r393;
@@ -388,7 +388,7 @@ $L__BB0_17:
 	add.s64 	%rd52, %rd2282, %rd2283;
 	setp.gt.u64 	%p60, %rd2141, %rd52;
 	mul.lo.s64 	%rd2284, %rd2279, 80;
-	mov.u64 	%rd2285, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd2285, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd53, %rd2285, %rd2284;
 	@%p60 bra 	$L__BB0_20;
 	bra.uni 	$L__BB0_19;
@@ -455,7 +455,7 @@ $L__BB0_22:
 	setp.ge.u64 	%p61, %rd2266, %rd47;
 	@%p61 bra 	$L__BB0_31;
 
-	mov.u64 	%rd2313, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd2313, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	mov.u32 	%r406, 0;
 	mov.f32 	%f2762, 0f00000000;
 	mov.u32 	%r407, -1;
@@ -2209,7 +2209,7 @@ $L__BB0_141:
 	ld.global.nc.u64 	%rd2390, [%rd65];
 	add.s64 	%rd2391, %rd2390, %rd63;
 	mul.lo.s64 	%rd2392, %rd2391, 80;
-	mov.u64 	%rd2393, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd2393, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd2394, %rd2393, %rd2392;
 	ld.shared.u32 	%rd2395, [%rd2394+36];
 	ld.shared.u32 	%rd2396, [%rd2394+40];
@@ -26290,7 +26290,7 @@ $L__BB0_1931:
 	shl.b64 	%rd5648, %rd2093, 6;
 	add.s64 	%rd5637, %rd2142, %rd5648;
 	mul.lo.s64 	%rd5649, %rd2092, 80;
-	mov.u64 	%rd5650, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd5650, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd5651, %rd5650, %rd5649;
 	ld.shared.u32 	%r1563, [%rd5651+20];
 	// begin inline asm
@@ -26374,7 +26374,7 @@ $L__BB0_1936:
 	shl.b64 	%rd5684, %rd5683, 3;
 	or.b64  	%rd5685, %rd5682, %rd5684;
 	mul.lo.s64 	%rd5686, %rd5685, 80;
-	mov.u64 	%rd5687, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd5687, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd5688, %rd5687, %rd5686;
 	ld.shared.u32 	%r1569, [%rd5688+20];
 	// begin inline asm
@@ -26427,7 +26427,7 @@ $L__BB0_1938:
 	shl.b64 	%rd5712, %rd5711, 3;
 	or.b64  	%rd5713, %rd5710, %rd5712;
 	mul.lo.s64 	%rd5714, %rd5713, 80;
-	mov.u64 	%rd5715, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd5715, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd5716, %rd5715, %rd5714;
 	ld.shared.u32 	%r1575, [%rd5716+20];
 	// begin inline asm
@@ -26480,7 +26480,7 @@ $L__BB0_1940:
 	shl.b64 	%rd5740, %rd5739, 3;
 	or.b64  	%rd5741, %rd5738, %rd5740;
 	mul.lo.s64 	%rd5742, %rd5741, 80;
-	mov.u64 	%rd5743, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd5743, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd5744, %rd5743, %rd5742;
 	ld.shared.u32 	%r1581, [%rd5744+20];
 	// begin inline asm
@@ -26534,7 +26534,7 @@ $L__BB0_1942:
 	shl.b64 	%rd5770, %rd2123, 6;
 	add.s64 	%rd5759, %rd2142, %rd5770;
 	mul.lo.s64 	%rd5771, %rd2122, 80;
-	mov.u64 	%rd5772, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hfff77e9ec81c0de4E;
+	mov.u64 	%rd5772, _ZN16sparkl3d_kernels4cuda5g2p2g13g2p2g_generic12shared_array6SHARED17hf1cbc222ed44b6c9E;
 	add.s64 	%rd5773, %rd5772, %rd5771;
 	ld.shared.u32 	%r1587, [%rd5773+20];
 	// begin inline asm
@@ -33125,7 +33125,7 @@ $L__BB3_2:
 	.reg .b32 	%r<22>;
 	.reg .b64 	%rd<63>;
 	// demoted variable
-	.shared .align 4 .b8 _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hed9c0b7caf8e7933E[2048];
+	.shared .align 4 .b8 _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h394108250712d51dE[2048];
 
 	ld.param.u64 	%rd20, [prefix_sum_512_param_0];
 	ld.param.u32 	%r5, [prefix_sum_512_param_1];
@@ -33163,7 +33163,7 @@ $L__BB3_2:
 
 $L__BB4_3:
 	shl.b64 	%rd32, %rd5, 2;
-	mov.u64 	%rd33, _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17hed9c0b7caf8e7933E;
+	mov.u64 	%rd33, _ZN16sparkl3d_kernels4cuda10prefix_sum14prefix_sum_51212shared_array6SHARED17h394108250712d51dE;
 	add.s64 	%rd7, %rd33, %rd32;
 	st.shared.u32 	[%rd7], %r21;
 	shr.u64 	%rd62, %rd3, 1;
