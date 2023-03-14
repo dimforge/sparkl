@@ -11,3 +11,4 @@ Cargo.lock
 
 *.xlsx
 .history
+.idea
