@@ -217,4 +217,5 @@ mod parry_math {
 }
 
 pub mod dynamics;
+pub mod rigid_particles;
 pub mod utils;

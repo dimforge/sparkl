@@ -1,17 +1,23 @@
-use crate::core::prelude::BoundaryHandling;
-use crate::kernels::GpuCollider;
+use crate::{
+    core::{prelude::BoundaryHandling, rigid_particles::RigidParticle},
+    cuda::generate_rigid_particles::generate_rigid_particles,
+    kernels::GpuCollider,
+};
 use cust::{
     error::CudaResult,
     memory::{DeviceBuffer, DevicePointer},
 };
 use kernels::GpuColliderShape;
-use parry::math::{Point, Real};
-use parry::shape::{CudaHeightField, CudaTriMesh};
-use parry::utils::CudaArray1;
+use parry::{
+    math::{Point, Real},
+    shape::{CudaHeightField, CudaTriMesh},
+    utils::CudaArray1,
+};
 use rapier::geometry::{ColliderHandle, ColliderSet};
 
 pub struct CudaColliderSet {
     buffer: DeviceBuffer<GpuCollider>,
+    rigid_particles_buffer: DeviceBuffer<RigidParticle>,
     // NOTE: keep this to keep the cuda buffers allocated.
     _heightfield_buffers: Vec<CudaHeightField>,
     _trimesh_buffers: Vec<CudaTriMesh>,
@@ -40,17 +46,19 @@ impl Default for CudaColliderOptions {
 
 impl CudaColliderSet {
     pub fn new() -> CudaResult<Self> {
-        Self::from_collider_set(&ColliderSet::new(), vec![])
+        Self::from_collider_set(&ColliderSet::new(), vec![], 0.0)
     }
 
     pub fn from_collider_set(
         collider_set: &ColliderSet,
         options: Vec<CudaColliderOptions>,
+        cell_width: Real,
     ) -> CudaResult<Self> {
         let mut gpu_colliders = vec![];
         let mut heightfield_buffers = vec![];
         let mut trimesh_buffers = vec![];
         let mut polyline_buffers = vec![];
+        let mut rigid_particles = vec![];
 
         for (handle, collider) in collider_set.iter() {
             let options = options
@@ -58,6 +66,10 @@ impl CudaColliderSet {
                 .find(|opt| opt.handle == handle)
                 .copied()
                 .unwrap_or_else(Default::default);
+
+            let index = handle.into_raw_parts().0;
+
+            generate_rigid_particles(&mut rigid_particles, cell_width, index, collider);
 
             if let Some(cuboid) = collider.shape().as_cuboid() {
                 let gpu_collider = GpuCollider {
@@ -116,11 +128,14 @@ impl CudaColliderSet {
             }
         }
 
-        dbg!("Len after conversion: {}", gpu_colliders.len());
+        println!("GPU colliders count: {}", gpu_colliders.len());
+        println!("Rigid particles count: {}", rigid_particles.len());
 
         let buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
+        let rigid_particles_buffer = DeviceBuffer::from_slice(&rigid_particles)?;
         Ok(Self {
             buffer,
+            rigid_particles_buffer,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
             _trimesh_buffers: trimesh_buffers,

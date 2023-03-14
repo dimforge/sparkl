@@ -36,6 +36,11 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(vector![0.0, 10.0, 0.0])
         .build(),
     );
+    colliders.insert(
+        ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+            .translation(vector![-5.0, 4.0, 0.0])
+            .build(),
+    );
 
     const NU: Real = 0.2;
     const E: Real = 1.0e7;

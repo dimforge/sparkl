@@ -15,3 +15,4 @@ mod cuda_particle_model_set;
 mod cuda_particle_set;
 mod cuda_sparse_grid;
 mod cuda_vec;
+mod generate_rigid_particles;
