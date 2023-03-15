@@ -709,11 +709,6 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
             if let Some(cuda_data) = self.cuda_data.get(0) {
                 if let Some(colliders) = &cuda_data.colliders {
-                    let colors = vec![
-                        [1.0, 0.0, 0.0, 1.0],
-                        [0.0, 1.0, 0.0, 1.0],
-                        [0.0, 0.0, 1.0, 1.0],
-                    ];
                     for particle in &colliders.rigid_particles {
                         let collider = colliders.gpu_colliders[particle.collider_index as usize];
 
@@ -726,10 +721,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         let pos = [pos.x as f32, pos.y as f32, pos_z];
 
                         let color_index = particle.color_index as usize;
+                        let count = 10;
 
-                        let color = colors[color_index % colors.len()];
-
-                        let color = [(color_index % 20) as f32 / 20.0, 0.0, 0.0, 1.0];
+                        let color = [(color_index % count) as f32 / count as f32, 0.0, 0.0, 1.0];
 
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
