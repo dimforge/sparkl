@@ -172,7 +172,7 @@ impl<T> SpGrid<T> {
         );
         assert!(std::mem::size_of::<T>() <= 64);
 
-        let memory = MmapMut::map_anon(u32::MAX as usize)?;
+        let memory = MmapMut::map_anon(2 ^ 30)?;
 
         Ok(Self {
             memory,
