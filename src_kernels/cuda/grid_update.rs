@@ -1,6 +1,6 @@
 use crate::gpu_collider::{GpuCollider, GpuColliderSet};
 use crate::gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus};
-use crate::BlockHeaderId;
+use crate::{BlockHeaderId, CdfData};
 use cuda_std::thread;
 use cuda_std::*;
 use na::{vector, Unit};
@@ -61,6 +61,8 @@ fn update_single_cell(
 ) {
     let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
         * sparkl_core::utils::inv_exact(cell.mass);
+
+    cell.cdf_data = CdfData::default();
 
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;

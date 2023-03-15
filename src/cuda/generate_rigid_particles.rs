@@ -137,6 +137,7 @@ fn cover_triangle(
     // Calculate the step increments on the base and the height.
     let base_step = cell_width * base_dir;
     let height_step = cell_width * height_dir;
+    let normal = base_dir.cross(&height_dir);
 
     let mut triangle_d = triangle.a;
 
@@ -154,6 +155,7 @@ fn cover_triangle(
         while distance(&triangle_d, &particle_position) <= min_height {
             rigid_particles.push(RigidParticle {
                 position: particle_position,
+                normal,
                 collider_index,
                 color_index,
             });

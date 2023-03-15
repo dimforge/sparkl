@@ -1,10 +1,9 @@
+use crate::cuda::{ActiveBlockHeader, AtomicAdd, AtomicInt, GridHashMap, HaloState};
 use crate::DevicePointer;
 use na::vector;
-use sparkl_core::math::{Point, Real, Vector};
-
-use crate::cuda::{ActiveBlockHeader, AtomicAdd, GridHashMap, HaloState};
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
+use sparkl_core::math::{Point, Real, Vector};
 
 #[cfg(feature = "dim2")]
 pub const NUM_CELL_PER_BLOCK: u64 = 4 * 4;
@@ -411,6 +410,18 @@ impl GpuGrid {
             }
         }
     }
+
+    pub fn get_node_id_at_coord(&self, coord: Point<i32>) -> Option<NodePhysicalId> {
+        let position = self.cell_width * coord.cast::<Real>();
+        let shift_in_block = coord.map(|e| (e % 4) as usize).coords;
+
+        let block_virtual = self.block_associated_to_point(&position);
+        let block_header = unsafe { self.get_header_block_id(block_virtual)? };
+        let block_physical = block_header.to_physical();
+        let node_physical = block_physical.node_id_unchecked(shift_in_block);
+
+        Some(node_physical)
+    }
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
@@ -443,6 +454,41 @@ impl GpuGridProjectionStatus {
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
+pub struct CdfData {
+    // The unsigned distance to the closest collider.
+    min_unsigned_distance: u32,
+    // The affinity and tag (inside/ outside) information stored for up to 16 colliders.
+    color: u32,
+}
+
+impl Default for CdfData {
+    fn default() -> Self {
+        Self {
+            min_unsigned_distance: u32::MAX,
+            color: 0,
+        }
+    }
+}
+
+impl CdfData {
+    pub const FACTOR: f32 = 1_000_000.0;
+
+    pub unsafe fn update(&mut self, unsigned_distance: f32, color: u32) {
+        let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
+
+        self.min_unsigned_distance
+            .global_red_min(integer_unsigned_distance);
+        self.color.global_red_or(color);
+    }
+
+    pub fn unsigned_distance(&self) -> f32 {
+        self.min_unsigned_distance as f32 / Self::FACTOR
+    }
+}
+
+#[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub struct GpuGridNode {
     pub mass: Real,
     // That’s where the particles transfer their momentum.
@@ -455,6 +501,7 @@ pub struct GpuGridNode {
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
+    pub cdf_data: CdfData,
 }
 
 impl Default for GpuGridNode {
@@ -467,6 +514,7 @@ impl Default for GpuGridNode {
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
+            cdf_data: CdfData::default(),
         }
     }
 }

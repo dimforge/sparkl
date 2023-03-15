@@ -8,6 +8,7 @@ pub use self::prefix_sum::prefix_sum_512;
 pub use self::reset_grid::reset_grid;
 pub use self::sort::{ActiveBlockHeader, HaloState};
 pub use self::timestep::{estimate_timestep_length, estimate_timestep_length_generic};
+pub use self::update_cdf::update_cdf;
 
 #[cfg(feature = "dim2")]
 pub const G2P2G_THREADS: usize = 64;
@@ -24,3 +25,4 @@ mod prefix_sum;
 mod reset_grid;
 mod sort;
 mod timestep;
+mod update_cdf;

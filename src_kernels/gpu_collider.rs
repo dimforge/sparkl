@@ -6,6 +6,7 @@ use parry::shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentP
 use parry::utils::CudaArrayPointer1;
 use sparkl_core::dynamics::solver::BoundaryHandling;
 use sparkl_core::math::{Isometry, Point, Real};
+use sparkl_core::rigid_particles::RigidParticle;
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
@@ -210,6 +211,26 @@ pub struct GpuCollider {
     pub friction: Real,
     pub penalty_stiffness: Real,
     pub grid_boundary_handling: BoundaryHandling,
+}
+
+#[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct NewGpuColliderSet {
+    pub collider_ptr: DevicePointer<GpuCollider>,
+    pub collider_count: usize,
+    pub rigid_particle_ptr: DevicePointer<RigidParticle>,
+    pub rigid_particle_count: usize,
+}
+
+impl NewGpuColliderSet {
+    pub fn collider(&self, i: usize) -> &GpuCollider {
+        unsafe { &*self.collider_ptr.as_ptr().add(i as usize) }
+    }
+
+    pub fn rigid_particle(&self, i: usize) -> &RigidParticle {
+        unsafe { &*self.rigid_particle_ptr.as_ptr().add(i as usize) }
+    }
 }
 
 pub struct GpuColliderSet {

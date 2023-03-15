@@ -11,6 +11,7 @@ pub trait AtomicAdd {
 }
 
 pub trait AtomicInt {
+    unsafe fn global_red_or(&mut self, rhs: Self);
     unsafe fn global_red_min(&mut self, rhs: Self);
     unsafe fn global_atomic_exch(&mut self, val: Self) -> Self;
     unsafe fn global_atomic_cas(&mut self, cmp: Self, val: Self) -> Self;
@@ -83,6 +84,25 @@ impl AtomicAdd for u32 {
 }
 
 impl AtomicInt for u32 {
+    unsafe fn global_red_or(&mut self, _rhs: Self) {
+        #[cfg(target_os = "cuda")]
+        {
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u32 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            red.global.or.b32 [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg32) _rhs
+            );
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        unimplemented!();
+    }
+
     unsafe fn global_red_min(&mut self, _rhs: Self) {
         #[cfg(target_os = "cuda")]
         {
@@ -284,6 +304,25 @@ impl AtomicAdd for u64 {
 }
 
 impl AtomicInt for u64 {
+    unsafe fn global_red_or(&mut self, _rhs: Self) {
+        #[cfg(target_os = "cuda")]
+        {
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u64 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            red.global.or.b64 [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg64) _rhs
+            );
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        unimplemented!();
+    }
+
     unsafe fn global_red_min(&mut self, _rhs: Self) {
         #[cfg(target_os = "cuda")]
         {

@@ -7,7 +7,7 @@ use cust::{
     error::CudaResult,
     memory::{DeviceBuffer, DevicePointer},
 };
-use kernels::GpuColliderShape;
+use kernels::{GpuColliderSet, GpuColliderShape, NewGpuColliderSet};
 use parry::{
     math::{Point, Real},
     shape::{CudaHeightField, CudaTriMesh},
@@ -16,15 +16,14 @@ use parry::{
 use rapier::geometry::{ColliderHandle, ColliderSet};
 
 pub struct CudaColliderSet {
-    buffer: DeviceBuffer<GpuCollider>,
     pub gpu_colliders: Vec<GpuCollider>,
     pub rigid_particles: Vec<RigidParticle>,
+    collider_buffer: DeviceBuffer<GpuCollider>,
     rigid_particles_buffer: DeviceBuffer<RigidParticle>,
     // NOTE: keep this to keep the cuda buffers allocated.
     _heightfield_buffers: Vec<CudaHeightField>,
     _trimesh_buffers: Vec<CudaTriMesh>,
     _polyline_buffers: Vec<CudaArray1<Point<Real>>>,
-    len: usize,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -142,15 +141,14 @@ impl CudaColliderSet {
         println!("GPU colliders count: {}", gpu_colliders.len());
         println!("Rigid particles count: {}", rigid_particles.len());
 
-        let buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
+        let collider_buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
         let rigid_particles_buffer = DeviceBuffer::from_slice(&rigid_particles)?;
 
         Ok(Self {
-            buffer,
-            len: gpu_colliders.len(),
+            collider_buffer,
+            rigid_particles_buffer,
             gpu_colliders,
             rigid_particles,
-            rigid_particles_buffer,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
             _trimesh_buffers: trimesh_buffers,
@@ -158,6 +156,18 @@ impl CudaColliderSet {
     }
 
     pub fn device_elements(&mut self) -> (DevicePointer<GpuCollider>, usize) {
-        (self.buffer.as_device_ptr(), self.len)
+        (
+            self.collider_buffer.as_device_ptr(),
+            self.gpu_colliders.len(),
+        )
+    }
+
+    pub fn as_device(&mut self) -> NewGpuColliderSet {
+        NewGpuColliderSet {
+            collider_ptr: self.collider_buffer.as_device_ptr(),
+            collider_count: self.gpu_colliders.len(),
+            rigid_particle_ptr: self.rigid_particles_buffer.as_device_ptr(),
+            rigid_particle_count: self.rigid_particles.len(),
+        }
     }
 }

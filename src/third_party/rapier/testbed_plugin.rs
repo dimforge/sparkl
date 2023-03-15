@@ -860,6 +860,12 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             ),
                         );
 
+                        let update_cdf = format_vals(device.updated_cdf);
+                        ui.colored_label(
+                            update_cdf.2,
+                            format!("update cdf: {:.2}ms ({}%)", update_cdf.0, update_cdf.1),
+                        );
+
                         let g2p2g = format_vals(device.g2p2g);
                         ui.colored_label(
                             g2p2g.2,

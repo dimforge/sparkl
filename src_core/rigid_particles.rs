@@ -1,4 +1,4 @@
-use crate::math::{Point, Real};
+use crate::math::{Point, Real, Vector};
 
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -6,6 +6,7 @@ use crate::math::{Point, Real};
 #[repr(C)]
 pub struct RigidParticle {
     pub position: Point<Real>,
+    pub normal: Vector<Real>,
     pub collider_index: u32,
     pub color_index: u32,
 }

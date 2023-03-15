@@ -66,6 +66,8 @@ pub struct CudaDeviceTimings {
     /// Note that all devices synchronize after this so the total time is
     /// around the max of all devices' timings.
     pub estimate_timestep: Duration,
+    /// Builds a colored distance field (CDF) used to cheaply lookup the distance to colliders.
+    pub updated_cdf: Duration,
     /// The main kernel in the pipeline, it spreads influence from particles to the grid,
     /// evaluates the constitutional model, and spreads influence from the grid back to the particles.
     /// Each device computes a chunk of the simulation when multigpu is being used.
@@ -157,6 +159,7 @@ impl<'t> CudaMpmPipelineParameters<'t> {
                     grid_resize_and_sort: Duration::default(),
                     reset_grid: Duration::default(),
                     estimate_timestep: Duration::default(),
+                    updated_cdf: Duration::default(),
                     g2p2g: Duration::default(),
                     halo_g2p2g: None,
                     copy_halo_to_staging: None,
@@ -197,6 +200,7 @@ struct ContextEvents {
     grid_resize_and_sort: EventTimer,
     reset_grid: EventTimer,
     estimate_timestep: EventTimer,
+    update_cdf: EventTimer,
     g2p2g: EventTimer,
     halo_g2p2g: EventTimer,
     copy_halo_to_staging: Option<EventTimer>,
@@ -214,6 +218,7 @@ impl ContextEvents {
                 grid_resize_and_sort: EventTimer::new(enabled)?,
                 reset_grid: EventTimer::new(enabled)?,
                 estimate_timestep: EventTimer::new(enabled)?,
+                update_cdf: EventTimer::new(enabled)?,
                 g2p2g: EventTimer::new(enabled)?,
                 halo_g2p2g: EventTimer::new(enabled)?,
                 copy_halo_to_staging: Some(EventTimer::new(enabled)?),
@@ -395,6 +400,27 @@ impl CudaMpmPipeline {
                     context.stream.synchronize()?;
                     let candidate_dt = context.timestep_length.as_host_value()?.into_sec();
                     timestep_length = timestep_length.min(candidate_dt);
+                }
+
+                // Todo: add cdf update here
+                for (i, context) in contexts.iter_mut().enumerate() {
+                    context.make_current()?;
+                    let module = &context.module;
+                    let stream = &context.stream;
+
+                    events[i].update_cdf.start(stream)?;
+
+                    let particle_count = context.colliders.rigid_particles.len() as u32;
+
+                    launch!(
+                        module.update_cdf<<<particle_count, (1, 1, 1), 0, stream>>>(
+                            context.grid.curr_device_elements(),
+                            context.colliders.as_device(),
+
+                        )
+                    )?;
+
+                    events[i].update_cdf.stop(stream)?;
                 }
 
                 // if remaining_time > min_dt {
@@ -583,6 +609,7 @@ impl CudaMpmPipeline {
                             grid_resize_and_sort: device.grid_resize_and_sort.end()?,
                             reset_grid: device.reset_grid.end()?,
                             estimate_timestep: device.estimate_timestep.end()?,
+                            updated_cdf: device.update_cdf.end()?,
                             g2p2g: device.g2p2g.end()?,
                             halo_g2p2g: if multigpu {
                                 Some(device.halo_g2p2g.end()?)
