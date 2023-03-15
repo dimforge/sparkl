@@ -25,6 +25,7 @@ pub enum GpuColliderShape {
         vertices: parry::utils::CudaArrayPointer1<Point<Real>>,
         flip_interior: bool,
     },
+    Any, // this is no longer required as soon as we switch to CDF completely
 }
 
 impl GpuColliderShape {

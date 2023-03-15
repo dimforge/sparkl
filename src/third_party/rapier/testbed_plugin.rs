@@ -16,6 +16,7 @@ use rapier::data::Coarena;
 
 #[cfg(feature = "dim3")]
 use super::point_cloud_render::ParticleInstanceMaterialData;
+use kernels::GpuCollider;
 #[cfg(feature = "cuda")]
 use {
     crate::{
@@ -704,6 +705,39 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     scale: (particle.volume0 * 3.0 / (4.0 * std::f32::consts::PI)).cbrt() / 2.0,
                     color: [color[0], color[1], color[2], 1.0],
                 });
+            }
+
+            if let Some(cuda_data) = self.cuda_data.get(0) {
+                if let Some(colliders) = &cuda_data.colliders {
+                    let colors = vec![
+                        [1.0, 0.0, 0.0, 1.0],
+                        [0.0, 1.0, 0.0, 1.0],
+                        [0.0, 0.0, 1.0, 1.0],
+                    ];
+                    for particle in &colliders.rigid_particles {
+                        let collider = colliders.gpu_colliders[particle.collider_index as usize];
+
+                        let pos = collider.position * particle.position;
+
+                        #[cfg(feature = "dim2")]
+                        let pos_z = 0.0;
+                        #[cfg(feature = "dim3")]
+                        let pos_z = particle.position.z;
+                        let pos = [pos.x as f32, pos.y as f32, pos_z];
+
+                        let color_index = particle.color_index as usize;
+
+                        let color = colors[color_index % colors.len()];
+
+                        let color = [(color_index % 20) as f32 / 20.0, 0.0, 0.0, 1.0];
+
+                        instance_data.push(ParticleInstanceData {
+                            position: pos.into(),
+                            scale: 0.02,
+                            color,
+                        });
+                    }
+                }
             }
 
             #[cfg(feature = "dim2")]

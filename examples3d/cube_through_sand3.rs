@@ -34,12 +34,30 @@ pub fn init_world(testbed: &mut Testbed) {
             vector![ground_half_side * 2.0, 10.0, ground_half_side * 2.0],
         )
         .translation(vector![0.0, 10.0, 0.0])
+        .sensor(true)
         .build(),
     );
     colliders.insert(
         ColliderBuilder::cuboid(1.0, 1.0, 1.0)
             .translation(vector![-5.0, 4.0, 0.0])
+            .sensor(true)
             .build(),
+    );
+    colliders.insert(
+        ColliderBuilder::capsule_y(2.0, 1.0)
+            .translation(vector![10.0, 4.0, 0.0])
+            .sensor(true)
+            .build(),
+    );
+    colliders.insert(
+        ColliderBuilder::triangle(
+            Point::new(10.0, -5.0, 10.0),
+            Point::new(14.0, -2.0, 10.0),
+            Point::new(16.0, -4.0, 10.0),
+        )
+        .translation(vector![10.0, 4.0, 0.0])
+        .sensor(true)
+        .build(),
     );
 
     const NU: Real = 0.2;

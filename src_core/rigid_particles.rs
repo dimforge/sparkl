@@ -7,4 +7,5 @@ use crate::math::{Point, Real};
 pub struct RigidParticle {
     pub position: Point<Real>,
     pub collider_index: u32,
+    pub color_index: u32,
 }

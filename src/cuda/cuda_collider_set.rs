@@ -17,6 +17,8 @@ use rapier::geometry::{ColliderHandle, ColliderSet};
 
 pub struct CudaColliderSet {
     buffer: DeviceBuffer<GpuCollider>,
+    pub gpu_colliders: Vec<GpuCollider>,
+    pub rigid_particles: Vec<RigidParticle>,
     rigid_particles_buffer: DeviceBuffer<RigidParticle>,
     // NOTE: keep this to keep the cuda buffers allocated.
     _heightfield_buffers: Vec<CudaHeightField>,
@@ -125,6 +127,15 @@ impl CudaColliderSet {
                 };
                 polyline_buffers.push(cuda_vertices);
                 gpu_colliders.push(gpu_collider);
+            } else {
+                let gpu_collider = GpuCollider {
+                    shape: GpuColliderShape::Any,
+                    position: *collider.position(),
+                    friction: collider.friction(),
+                    penalty_stiffness: options.penalty_stiffness,
+                    grid_boundary_handling: options.grid_boundary_handling,
+                };
+                gpu_colliders.push(gpu_collider);
             }
         }
 
@@ -133,13 +144,16 @@ impl CudaColliderSet {
 
         let buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
         let rigid_particles_buffer = DeviceBuffer::from_slice(&rigid_particles)?;
+
         Ok(Self {
             buffer,
+            len: gpu_colliders.len(),
+            gpu_colliders,
+            rigid_particles,
             rigid_particles_buffer,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
             _trimesh_buffers: trimesh_buffers,
-            len: gpu_colliders.len(),
         })
     }
 
