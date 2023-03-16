@@ -28,15 +28,15 @@ pub fn init_world(testbed: &mut Testbed) {
             heigths[(i, j)] = -(i as f32 * std::f32::consts::PI / (nx as f32)).sin();
         }
     }
-    colliders.insert(
-        ColliderBuilder::heightfield(
-            heigths.into(),
-            vector![ground_half_side * 2.0, 10.0, ground_half_side * 2.0],
-        )
-        .translation(vector![0.0, 10.0, 0.0])
-        .sensor(true)
-        .build(),
-    );
+    // colliders.insert(
+    //     ColliderBuilder::heightfield(
+    //         heigths.into(),
+    //         vector![ground_half_side * 2.0, 10.0, ground_half_side * 2.0],
+    //     )
+    //     .translation(vector![0.0, 10.0, 0.0])
+    //     .sensor(true)
+    //     .build(),
+    // );
     colliders.insert(
         ColliderBuilder::cuboid(1.0, 1.0, 1.0)
             .translation(vector![-5.0, 4.0, 0.0])
@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
     );
     colliders.insert(
         ColliderBuilder::capsule_y(2.0, 1.0)
-            .translation(vector![10.0, 4.0, 0.0])
+            .translation(vector![10.0, 4.0, 2.0])
             .sensor(true)
             .build(),
     );

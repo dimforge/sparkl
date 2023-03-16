@@ -1,22 +1,23 @@
+use super::point_cloud_render::ParticleInstanceData;
+use crate::core::dynamics::ParticleData;
+use crate::cuda::HostSparseGridData;
+use crate::dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet};
+use crate::geometry::SpGrid;
 use crate::math::{Real, Vector};
+use crate::pipelines::MpmPipeline;
+use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
-use na::{Point3, Vector3};
+use instant::Duration;
+use na::{distance, vector, Point3, Vector3};
+use rapier::data::Coarena;
 use rapier::geometry::ColliderSet;
 use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
 
-use super::point_cloud_render::ParticleInstanceData;
-use crate::core::dynamics::ParticleData;
-use crate::dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet};
-use crate::geometry::SpGrid;
-use crate::pipelines::MpmPipeline;
-use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
-use instant::Duration;
-use rapier::data::Coarena;
-
 #[cfg(feature = "dim3")]
 use super::point_cloud_render::ParticleInstanceMaterialData;
-use kernels::GpuCollider;
+use kernels::{BlockHeaderId, GpuCollider};
+use sparkl3d_kernels::NUM_CELL_PER_BLOCK;
 #[cfg(feature = "cuda")]
 use {
     crate::{
@@ -117,6 +118,8 @@ pub struct MpmTestbedPlugin {
     cuda_vel_writeback: LockedBuffer<crate::core::dynamics::ParticleVelocity>,
     #[cfg(feature = "cuda")]
     cuda_phase_writeback: LockedBuffer<crate::core::dynamics::ParticlePhase>,
+    #[cfg(feature = "cuda")]
+    host_sparse_grid_data: HostSparseGridData,
     // wgpu_pipeline: WgpuMpmPipeline,
     // f2sn: HashMap<FluidHandle, Vec<EntityWithGraphics>>,
     // boundary2sn: HashMap<BoundaryHandle, Vec<EntityWithGraphics>>,
@@ -289,6 +292,8 @@ impl MpmTestbedPlugin {
                 0,
             )
             .expect("Failed to allocate locked staging buffer"),
+            #[cfg(feature = "cuda")]
+            host_sparse_grid_data: HostSparseGridData::default(),
             // f2sn: HashMap::new(),
             // boundary2sn: HashMap::new(),
             // f2color: HashMap::new(),
@@ -574,6 +579,11 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         )
                         .expect("Could not retrieve particle data from the GPU.");
                     curr_shift += num_particles;
+
+                    context.grid.copy_data_to_host(
+                        &mut self.host_sparse_grid_data,
+                        context.num_active_blocks,
+                    );
                 }
 
                 for (out_p, pos, vel, phase) in itertools::multizip((
@@ -712,13 +722,17 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     for particle in &colliders.rigid_particles {
                         let collider = colliders.gpu_colliders[particle.collider_index as usize];
 
-                        let pos = collider.position * particle.position;
+                        let particle_position = collider.position * particle.position;
 
                         #[cfg(feature = "dim2")]
                         let pos_z = 0.0;
                         #[cfg(feature = "dim3")]
-                        let pos_z = particle.position.z;
-                        let pos = [pos.x as f32, pos.y as f32, pos_z];
+                        let pos_z = particle_position.z;
+                        let pos = [
+                            particle_position.x as f32,
+                            particle_position.y as f32,
+                            pos_z,
+                        ];
 
                         let color_index = particle.color_index as usize;
                         let count = 10;
@@ -730,6 +744,105 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             scale: 0.02,
                             color,
                         });
+
+                        let cell_width = self.sp_grid.cell_width();
+                        let node_coord =
+                            (particle_position / cell_width).map(|e| e.round() as i32 - 1);
+
+                        for i in 0..27 as i64 {
+                            let x = (i / 9) % 3;
+                            let y = (i / 3) % 3;
+                            let z = i % 3;
+                            let shift = vector![x, y, z];
+
+                            let node_coord = (particle_position / cell_width)
+                                .map(|e| e.round() as i64 - 1)
+                                + shift;
+                            let node_position = node_coord.cast::<Real>() * cell_width;
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = node_position.z;
+                            let pos = [node_position.x as f32, node_position.y as f32, pos_z];
+
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale: 0.02,
+                                color: [0.0, 0.0, 1.0, 1.0],
+                            });
+                        }
+                    }
+                }
+            }
+
+            let grid_data = &self.host_sparse_grid_data;
+            let cell_width = self.sp_grid.cell_width();
+
+            for block_header in grid_data.active_blocks.iter() {
+                let block_virtual = block_header.virtual_id;
+
+                if let Some(block_header) = grid_data.grid_hash_map.get(block_virtual) {
+                    let block_physical = block_header.to_physical();
+
+                    for i in 0..NUM_CELL_PER_BLOCK as usize {
+                        let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
+                        let node_physical = block_physical.node_id_unchecked(shift);
+
+                        if let Some(node) = grid_data.node_buffer.get(node_physical.0 as usize) {
+                            let node_coord =
+                                block_virtual.unpack_pos_on_signed_grid() * 4 + shift.cast::<i64>();
+                            let node_position = cell_width * node_coord.cast::<Real>();
+
+                            let real_position = node.cdf_data.real_pos;
+                            let cdf_position = node.cdf_data.cdf_pos;
+                            let particle_pos = node.cdf_data.particle_pos;
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = node_position.z;
+                            let pos = [node_position.x as f32, node_position.y as f32, pos_z];
+
+                            if node.cdf_data.active > 0 {
+                                if distance(&node_position.into(), &particle_pos) > 0.6 {
+                                    dbg!(real_position);
+                                    dbg!(cdf_position);
+                                    dbg!(particle_pos);
+                                    println!();
+
+                                    instance_data.push(ParticleInstanceData {
+                                        position: pos.into(),
+                                        scale: 0.06,
+                                        color: [1.0, 1.0, 0.0, 1.0],
+                                    });
+
+                                    #[cfg(feature = "dim2")]
+                                    let pos_z = 0.0;
+                                    #[cfg(feature = "dim3")]
+                                    let pos_z = particle_pos.z;
+                                    let pos = [particle_pos.x as f32, particle_pos.y as f32, pos_z];
+
+                                    instance_data.push(ParticleInstanceData {
+                                        position: pos.into(),
+                                        scale: 0.06,
+                                        color: [1.0, 0.0, 0.0, 1.0],
+                                    });
+                                } else {
+                                    instance_data.push(ParticleInstanceData {
+                                        position: pos.into(),
+                                        scale: 0.05,
+                                        color: [0.0, 1.0, 0.0, 1.0],
+                                    });
+                                }
+                            } else {
+                                // instance_data.push(ParticleInstanceData {
+                                //     position: pos.into(),
+                                //     scale: 0.02,
+                                //     color: [0.0, 0.0, 0.0, 1.0],
+                                // });
+                            }
+                        }
                     }
                 }
             }

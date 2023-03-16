@@ -62,8 +62,6 @@ fn update_single_cell(
     let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
         * sparkl_core::utils::inv_exact(cell.mass);
 
-    cell.cdf_data = CdfData::default();
-
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;
         for (i, collider) in colliders.iter().enumerate() {
@@ -158,4 +156,5 @@ fn update_single_cell(
 
     cell.momentum_velocity = cell_velocity;
     cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
+    cell.cdf_data.real_pos = cell_pos;
 }

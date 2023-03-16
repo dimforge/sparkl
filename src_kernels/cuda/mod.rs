@@ -2,7 +2,7 @@ pub use self::atomic::{AtomicAdd, AtomicInt};
 // pub use self::fluids_volume::{recompute_fluids_volume_g2p, recompute_fluids_volume_p2g};
 pub use self::g2p2g::{g2p2g, g2p2g_generic, InterpolatedParticleData};
 pub use self::grid_update::grid_update;
-pub use self::hashmap::{GridHashMap, GridHashMapEntry};
+pub use self::hashmap::{hash, GridHashMap, GridHashMapEntry};
 pub use self::particle_updater::{DefaultParticleUpdater, ParticleUpdater};
 pub use self::prefix_sum::prefix_sum_512;
 pub use self::reset_grid::reset_grid;

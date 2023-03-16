@@ -67,7 +67,7 @@ pub const NBH_SHIFTS_SHARED: [usize; 27] = [
 pub const NBH_SHIFTS_SHARED: [usize; 9] = [18, 2, 10, 16, 0, 8, 17, 1, 9];
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable, Default)]
 #[repr(transparent)]
 pub struct BlockVirtualId(pub u64);
 
@@ -84,6 +84,10 @@ impl BlockVirtualId {
 
     pub fn unpack_pos_on_signed_grid(self) -> Vector<i64> {
         self.unpack().cast::<i64>() - Vector::repeat(Self::PACK_ORIGIN as i64)
+    }
+
+    pub fn pack_pos_on_signed_grid(pos: Vector<i64>) -> BlockVirtualId {
+        Self::pack((pos + Vector::repeat(Self::PACK_ORIGIN as i64)).map(|e| e as usize))
     }
 
     #[cfg(feature = "dim2")]
@@ -119,7 +123,7 @@ impl BlockVirtualId {
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable, Default)]
 #[repr(transparent)]
 pub struct BlockHeaderId(pub u32);
 
@@ -411,14 +415,24 @@ impl GpuGrid {
         }
     }
 
-    pub fn get_node_id_at_coord(&self, coord: Point<i32>) -> Option<NodePhysicalId> {
-        let position = self.cell_width * coord.cast::<Real>();
-        let shift_in_block = coord.map(|e| (e % 4) as usize).coords;
+    pub fn get_node_id_at_coord(&self, node_coord: Point<i64>) -> Option<NodePhysicalId> {
+        // let position = node_coord.cast::<Real>() * self.cell_width;
+        let block_coord = node_coord.coords / 4;
+        // let shift = node_coord.map(|e| (e % 4) as usize).coords;
 
-        let block_virtual = self.block_associated_to_point(&position);
+        let shift = node_coord
+            .map(|e| {
+                let assoc_cell = e as i32;
+                let assoc_block = (assoc_cell as Real / 4.0).floor() as i32 * 4;
+                (assoc_cell - assoc_block) as usize // Will always be positive.
+            })
+            .coords;
+
+        let block_virtual = BlockVirtualId::pack_pos_on_signed_grid(block_coord);
+        // let block_virtual = self.block_associated_to_point(&position);
         let block_header = unsafe { self.get_header_block_id(block_virtual)? };
         let block_physical = block_header.to_physical();
-        let node_physical = block_physical.node_id_unchecked(shift_in_block);
+        let node_physical = block_physical.node_id_unchecked(shift);
 
         Some(node_physical)
     }
@@ -459,6 +473,10 @@ pub struct CdfData {
     min_unsigned_distance: u32,
     // The affinity and tag (inside/ outside) information stored for up to 16 colliders.
     color: u32,
+    pub active: u32,
+    pub real_pos: Point<Real>, // the actual position of the node
+    pub cdf_pos: Point<Real>,  // the falsely assumed position of the node in the cdf kernel
+    pub particle_pos: Point<Real>,
 }
 
 impl Default for CdfData {
@@ -466,6 +484,10 @@ impl Default for CdfData {
         Self {
             min_unsigned_distance: u32::MAX,
             color: 0,
+            active: 0,
+            real_pos: Point::default(),
+            cdf_pos: Point::default(),
+            particle_pos: Point::default(),
         }
     }
 }
@@ -474,11 +496,13 @@ impl CdfData {
     pub const FACTOR: f32 = 1_000_000.0;
 
     pub unsafe fn update(&mut self, unsigned_distance: f32, color: u32) {
-        let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
+        // let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
+        //
+        // self.min_unsigned_distance
+        //     .global_red_min(integer_unsigned_distance);
+        // self.color.global_red_or(color);
 
-        self.min_unsigned_distance
-            .global_red_min(integer_unsigned_distance);
-        self.color.global_red_or(color);
+        self.active.global_red_add(1);
     }
 
     pub fn unsigned_distance(&self) -> f32 {

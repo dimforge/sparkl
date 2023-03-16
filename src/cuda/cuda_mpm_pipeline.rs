@@ -418,8 +418,8 @@ impl CudaMpmPipeline {
                     let block_size = (3, 3, 3);
 
                     launch!(
-                        module.update_cdf<<<particle_count, 1, 0, stream>>>(
-                            context.grid.curr_device_elements(),
+                        module.update_cdf<<<particle_count, block_size, 0, stream>>>(
+                            context.grid.next_device_elements(),
                             context.colliders.as_device(),
 
                         )
