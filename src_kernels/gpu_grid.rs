@@ -416,20 +416,10 @@ impl GpuGrid {
     }
 
     pub fn get_node_id_at_coord(&self, node_coord: Point<i64>) -> Option<NodePhysicalId> {
-        // let position = node_coord.cast::<Real>() * self.cell_width;
-        let block_coord = node_coord.coords / 4;
-        // let shift = node_coord.map(|e| (e % 4) as usize).coords;
-
-        let shift = node_coord
-            .map(|e| {
-                let assoc_cell = e as i32;
-                let assoc_block = (assoc_cell as Real / 4.0).floor() as i32 * 4;
-                (assoc_cell - assoc_block) as usize // Will always be positive.
-            })
-            .coords;
+        let block_coord = node_coord.coords.map(|e| (e as Real / 4.0).floor() as i64);
+        let shift = (node_coord.coords - block_coord * 4).map(|e| e as usize);
 
         let block_virtual = BlockVirtualId::pack_pos_on_signed_grid(block_coord);
-        // let block_virtual = self.block_associated_to_point(&position);
         let block_header = unsafe { self.get_header_block_id(block_virtual)? };
         let block_physical = block_header.to_physical();
         let node_physical = block_physical.node_id_unchecked(shift);
