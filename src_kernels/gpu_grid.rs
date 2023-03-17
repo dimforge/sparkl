@@ -464,9 +464,9 @@ pub struct CdfData {
     // The affinity and tag (inside/ outside) information stored for up to 16 colliders.
     color: u32,
     pub active: u32,
-    pub real_pos: Point<Real>, // the actual position of the node
-    pub cdf_pos: Point<Real>,  // the falsely assumed position of the node in the cdf kernel
-    pub particle_pos: Point<Real>,
+    // pub real_pos: Point<Real>, // the actual position of the node
+    // pub cdf_pos: Point<Real>,  // the falsely assumed position of the node in the cdf kernel
+    // pub particle_pos: Point<Real>,
 }
 
 impl Default for CdfData {
@@ -475,9 +475,9 @@ impl Default for CdfData {
             min_unsigned_distance: u32::MAX,
             color: 0,
             active: 0,
-            real_pos: Point::default(),
-            cdf_pos: Point::default(),
-            particle_pos: Point::default(),
+            // real_pos: Point::default(),
+            // cdf_pos: Point::default(),
+            // particle_pos: Point::default(),
         }
     }
 }
@@ -485,18 +485,32 @@ impl Default for CdfData {
 impl CdfData {
     pub const FACTOR: f32 = 1_000_000.0;
 
-    pub unsafe fn update(&mut self, unsigned_distance: f32, color: u32) {
-        // let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
-        //
-        // self.min_unsigned_distance
-        //     .global_red_min(integer_unsigned_distance);
-        // self.color.global_red_or(color);
+    pub fn update(&mut self, signed_distance: f32, collider_index: u32) {
+        let unsigned_distance = signed_distance.abs();
+        let affinity = 1;
+        let tag = if signed_distance >= 0.0 { 1 } else { 0 };
+        let color = ((affinity << 1) | tag) << (collider_index << 1);
 
-        self.active.global_red_add(1);
+        let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
+
+        unsafe {
+            self.min_unsigned_distance
+                .global_red_min(integer_unsigned_distance);
+            self.color.global_red_or(color);
+            self.active.global_red_add(1);
+        }
     }
 
     pub fn unsigned_distance(&self) -> f32 {
         self.min_unsigned_distance as f32 / Self::FACTOR
+    }
+
+    pub fn color(&self, collider_index: u32) -> (u32, u32) {
+        let collider_color = self.color >> (collider_index << 1);
+        let affinity = (collider_color >> 1) & 1;
+        let tag = collider_color & 1;
+
+        (affinity, tag)
     }
 }
 

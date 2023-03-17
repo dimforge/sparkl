@@ -1,6 +1,6 @@
 use crate::gpu_collider::{GpuCollider, GpuColliderSet};
 use crate::gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus};
-use crate::{BlockHeaderId, CdfData};
+use crate::BlockHeaderId;
 use cuda_std::thread;
 use cuda_std::*;
 use na::{vector, Unit};
@@ -156,5 +156,4 @@ fn update_single_cell(
 
     cell.momentum_velocity = cell_velocity;
     cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
-    cell.cdf_data.real_pos = cell_pos;
 }

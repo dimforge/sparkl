@@ -39,23 +39,22 @@ pub fn init_world(testbed: &mut Testbed) {
     // );
     colliders.insert(
         ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-            .translation(vector![-5.0, 4.0, 0.0])
+            .translation(vector![10.0, 8.0, 5.0])
             .sensor(true)
             .build(),
     );
     colliders.insert(
         ColliderBuilder::capsule_y(2.0, 1.0)
-            .translation(vector![10.0, 4.0, 2.0])
+            .translation(vector![10.0, 4.0, 5.0])
             .sensor(true)
             .build(),
     );
     colliders.insert(
         ColliderBuilder::triangle(
-            Point::new(10.0, -5.0, 10.0),
-            Point::new(14.0, -2.0, 10.0),
-            Point::new(16.0, -4.0, 10.0),
+            Point::new(6.0, 2.0, 4.0),
+            Point::new(12.0, 2.0, 4.0),
+            Point::new(10.0, 8.0, 4.0),
         )
-        .translation(vector![10.0, 4.0, 0.0])
         .sensor(true)
         .build(),
     );

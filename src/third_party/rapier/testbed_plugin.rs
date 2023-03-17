@@ -745,33 +745,33 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             color,
                         });
 
-                        let cell_width = self.sp_grid.cell_width();
-                        let node_coord =
-                            (particle_position / cell_width).map(|e| e.round() as i32 - 1);
+                        // let cell_width = self.sp_grid.cell_width();
+                        // let node_coord =
+                        //     (particle_position / cell_width).map(|e| e.round() as i32 - 1);
 
-                        for i in 0..27 as i64 {
-                            let x = (i / 9) % 3;
-                            let y = (i / 3) % 3;
-                            let z = i % 3;
-                            let shift = vector![x, y, z];
+                        // for i in 0..27 as i64 {
+                        //     let x = (i / 9) % 3;
+                        //     let y = (i / 3) % 3;
+                        //     let z = i % 3;
+                        //     let shift = vector![x, y, z];
 
-                            let node_coord = (particle_position / cell_width)
-                                .map(|e| e.round() as i64 - 1)
-                                + shift;
-                            let node_position = node_coord.cast::<Real>() * cell_width;
+                        // let node_coord = (particle_position / cell_width)
+                        //     .map(|e| e.round() as i64 - 1)
+                        //     + shift;
+                        // let node_position = node_coord.cast::<Real>() * cell_width;
 
-                            #[cfg(feature = "dim2")]
-                            let pos_z = 0.0;
-                            #[cfg(feature = "dim3")]
-                            let pos_z = node_position.z;
-                            let pos = [node_position.x as f32, node_position.y as f32, pos_z];
+                        // #[cfg(feature = "dim2")]
+                        // let pos_z = 0.0;
+                        // #[cfg(feature = "dim3")]
+                        // let pos_z = node_position.z;
+                        // let pos = [node_position.x as f32, node_position.y as f32, pos_z];
 
-                            instance_data.push(ParticleInstanceData {
-                                position: pos.into(),
-                                scale: 0.02,
-                                color: [0.0, 0.0, 1.0, 1.0],
-                            });
-                        }
+                        //     instance_data.push(ParticleInstanceData {
+                        //         position: pos.into(),
+                        //         scale: 0.02,
+                        //         color: [0.0, 0.0, 1.0, 1.0],
+                        //     });
+                        // }
                     }
                 }
             }
@@ -794,10 +794,6 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                 block_virtual.unpack_pos_on_signed_grid() * 4 + shift.cast::<i64>();
                             let node_position = cell_width * node_coord.cast::<Real>();
 
-                            let real_position = node.cdf_data.real_pos;
-                            let cdf_position = node.cdf_data.cdf_pos;
-                            let particle_pos = node.cdf_data.particle_pos;
-
                             #[cfg(feature = "dim2")]
                             let pos_z = 0.0;
                             #[cfg(feature = "dim3")]
@@ -805,36 +801,33 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             let pos = [node_position.x as f32, node_position.y as f32, pos_z];
 
                             if node.cdf_data.active > 0 {
-                                if distance(&node_position.into(), &particle_pos) > 0.6 {
-                                    dbg!(real_position);
-                                    dbg!(cdf_position);
-                                    dbg!(particle_pos);
-                                    println!();
+                                let active_count = node.cdf_data.active as Real / 20.0;
+                                let unsigned_distance = node.cdf_data.unsigned_distance();
 
-                                    instance_data.push(ParticleInstanceData {
-                                        position: pos.into(),
-                                        scale: 0.06,
-                                        color: [1.0, 1.0, 0.0, 1.0],
-                                    });
+                                let max_distance = cell_width * (3.0 * 1.5_f32.powf(2.0)).sqrt();
 
-                                    #[cfg(feature = "dim2")]
-                                    let pos_z = 0.0;
-                                    #[cfg(feature = "dim3")]
-                                    let pos_z = particle_pos.z;
-                                    let pos = [particle_pos.x as f32, particle_pos.y as f32, pos_z];
+                                let relative_distance = unsigned_distance / max_distance;
 
-                                    instance_data.push(ParticleInstanceData {
-                                        position: pos.into(),
-                                        scale: 0.06,
-                                        color: [1.0, 0.0, 0.0, 1.0],
-                                    });
-                                } else {
-                                    instance_data.push(ParticleInstanceData {
-                                        position: pos.into(),
-                                        scale: 0.05,
-                                        color: [0.0, 1.0, 0.0, 1.0],
-                                    });
+                                if relative_distance > 1.0 {
+                                    dbg!(unsigned_distance);
+                                    dbg!(max_distance);
                                 }
+
+                                let color = [active_count, 0.0, 0.0, 1.0];
+                                let color = [0.0, 1.0 - relative_distance * 2.0, 0.0, 1.0];
+
+                                let mut color = [0.0; 4];
+                                for i in 0..3 {
+                                    let (affinity, tag) = node.cdf_data.color(i);
+                                    color[i as usize] =
+                                        affinity as f32 * (1.0 + 2.0 * tag as f32) / 3.0;
+                                }
+
+                                instance_data.push(ParticleInstanceData {
+                                    position: pos.into(),
+                                    scale: 0.06,
+                                    color,
+                                });
                             } else {
                                 // instance_data.push(ParticleInstanceData {
                                 //     position: pos.into(),
