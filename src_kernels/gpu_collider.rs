@@ -1,12 +1,13 @@
 use crate::DevicePointer;
 use core::marker::PhantomData;
 use na::ComplexField;
-use parry::query::{PointProjection, PointQueryWithLocation};
-use parry::shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation};
-use parry::utils::CudaArrayPointer1;
-use sparkl_core::dynamics::solver::BoundaryHandling;
-use sparkl_core::math::{Isometry, Point, Real};
-use sparkl_core::rigid_particles::RigidParticle;
+use parry::{
+    math::{Isometry, Point, Real},
+    query::{PointProjection, PointQueryWithLocation},
+    shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation, Triangle},
+    utils::CudaArrayPointer1,
+};
+use sparkl_core::{dynamics::solver::BoundaryHandling, rigid_particles::RigidParticle};
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
@@ -23,7 +24,7 @@ pub enum GpuColliderShape {
         flip_interior: bool,
     },
     Polyline {
-        vertices: parry::utils::CudaArrayPointer1<Point<Real>>,
+        vertices: CudaArrayPointer1<Point<Real>>,
         flip_interior: bool,
     },
     Any, // this is no longer required as soon as we switch to CDF completely
@@ -218,18 +219,32 @@ pub struct GpuCollider {
 #[repr(C)]
 pub struct NewGpuColliderSet {
     pub collider_ptr: DevicePointer<GpuCollider>,
-    pub collider_count: usize,
     pub rigid_particle_ptr: DevicePointer<RigidParticle>,
-    pub rigid_particle_count: usize,
+    pub vertex_ptr: DevicePointer<Point<Real>>,
+    pub index_ptr: DevicePointer<u32>,
 }
 
 impl NewGpuColliderSet {
-    pub fn collider(&self, i: usize) -> &GpuCollider {
+    pub fn collider(&self, i: u32) -> &GpuCollider {
         unsafe { &*self.collider_ptr.as_ptr().add(i as usize) }
     }
 
-    pub fn rigid_particle(&self, i: usize) -> &RigidParticle {
+    pub fn rigid_particle(&self, i: u32) -> &RigidParticle {
         unsafe { &*self.rigid_particle_ptr.as_ptr().add(i as usize) }
+    }
+
+    pub fn triangle(&self, i: u32, collider_position: &Isometry<Real>) -> Triangle {
+        unsafe {
+            let index_a = *self.index_ptr.as_ptr().add(i as usize);
+            let index_b = *self.index_ptr.as_ptr().add(i as usize + 1);
+            let index_c = *self.index_ptr.as_ptr().add(i as usize + 2);
+
+            let a = collider_position * *self.vertex_ptr.as_ptr().add(index_a as usize);
+            let b = collider_position * *self.vertex_ptr.as_ptr().add(index_b as usize);
+            let c = collider_position * *self.vertex_ptr.as_ptr().add(index_c as usize);
+
+            Triangle { a, b, c }
+        }
     }
 }
 

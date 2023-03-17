@@ -1,3 +1,4 @@
+use crate::cuda::generate_rigid_particles::generate_collider_mesh;
 use crate::{
     core::{prelude::BoundaryHandling, rigid_particles::RigidParticle},
     cuda::generate_rigid_particles::generate_rigid_particles,
@@ -20,7 +21,10 @@ pub struct CudaColliderSet {
     pub rigid_particles: Vec<RigidParticle>,
     collider_buffer: DeviceBuffer<GpuCollider>,
     rigid_particles_buffer: DeviceBuffer<RigidParticle>,
+    vertex_buffer: DeviceBuffer<Point<Real>>,
+    index_buffer: DeviceBuffer<u32>,
     // NOTE: keep this to keep the cuda buffers allocated.
+    // Todo: remove this once the CDF is the default
     _heightfield_buffers: Vec<CudaHeightField>,
     _trimesh_buffers: Vec<CudaTriMesh>,
     _polyline_buffers: Vec<CudaArray1<Point<Real>>>,
@@ -60,6 +64,8 @@ impl CudaColliderSet {
         let mut trimesh_buffers = vec![];
         let mut polyline_buffers = vec![];
         let mut rigid_particles = vec![];
+        let mut vertices = vec![];
+        let mut indices = vec![];
 
         for (handle, collider) in collider_set.iter() {
             let options = options
@@ -68,87 +74,116 @@ impl CudaColliderSet {
                 .copied()
                 .unwrap_or_else(Default::default);
 
-            let index = handle.into_raw_parts().0;
+            let collider_index = handle.into_raw_parts().0;
 
-            generate_rigid_particles(&mut rigid_particles, cell_width, index, collider);
+            if true {
+                // CDF
+                let index_range = generate_collider_mesh(collider, &mut vertices, &mut indices);
 
-            if let Some(cuboid) = collider.shape().as_cuboid() {
-                let gpu_collider = GpuCollider {
-                    shape: GpuColliderShape::Cuboid(*cuboid),
-                    position: *collider.position(),
-                    friction: collider.friction(),
-                    penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
-                };
-                gpu_colliders.push(gpu_collider);
-            } else if let Some(heightfield) = collider.shape().as_heightfield() {
-                let cuda_heightfield = heightfield.to_cuda()?;
-                let cuda_heightfield_pointer = cuda_heightfield.as_device_ptr();
-                let gpu_collider = GpuCollider {
-                    shape: GpuColliderShape::HeightField {
-                        heightfield: cuda_heightfield_pointer,
-                        bellow_heightfield_is_solid: true,
-                        flip_interior: options.flip_interior,
-                    },
-                    position: *collider.position(),
-                    friction: collider.friction(),
-                    penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
-                };
-                heightfield_buffers.push(cuda_heightfield);
-                gpu_colliders.push(gpu_collider);
-            } else if let Some(trimesh) = collider.shape().as_trimesh() {
-                let cuda_trimesh = trimesh.to_cuda()?;
-                let cuda_trimesh_pointer = cuda_trimesh.as_device_ptr();
-                let gpu_collider = GpuCollider {
-                    shape: GpuColliderShape::TriMesh {
-                        trimesh: cuda_trimesh_pointer,
-                        flip_interior: options.flip_interior,
-                    },
-                    position: *collider.position(),
-                    friction: collider.friction(),
-                    penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
-                };
-                trimesh_buffers.push(cuda_trimesh);
-                gpu_colliders.push(gpu_collider);
-            } else if let Some(polyline) = collider.shape().as_polyline() {
-                let cuda_vertices = CudaArray1::new(polyline.vertices())?;
-                let gpu_collider = GpuCollider {
-                    shape: GpuColliderShape::Polyline {
-                        vertices: cuda_vertices.as_device_ptr(),
-                        flip_interior: options.flip_interior,
-                    },
-                    position: *collider.position(),
-                    friction: collider.friction(),
-                    penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
-                };
-                polyline_buffers.push(cuda_vertices);
-                gpu_colliders.push(gpu_collider);
-            } else {
-                let gpu_collider = GpuCollider {
+                generate_rigid_particles(
+                    index_range,
+                    &vertices,
+                    &indices,
+                    &mut rigid_particles,
+                    collider_index,
+                    cell_width,
+                );
+
+                let collider = GpuCollider {
                     shape: GpuColliderShape::Any,
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
                     grid_boundary_handling: options.grid_boundary_handling,
                 };
-                gpu_colliders.push(gpu_collider);
+
+                gpu_colliders.push(collider);
+            } else {
+                // None CDF
+                if let Some(cuboid) = collider.shape().as_cuboid() {
+                    let gpu_collider = GpuCollider {
+                        shape: GpuColliderShape::Cuboid(*cuboid),
+                        position: *collider.position(),
+                        friction: collider.friction(),
+                        penalty_stiffness: options.penalty_stiffness,
+                        grid_boundary_handling: options.grid_boundary_handling,
+                    };
+                    gpu_colliders.push(gpu_collider);
+                } else if let Some(heightfield) = collider.shape().as_heightfield() {
+                    let cuda_heightfield = heightfield.to_cuda()?;
+                    let cuda_heightfield_pointer = cuda_heightfield.as_device_ptr();
+                    let gpu_collider = GpuCollider {
+                        shape: GpuColliderShape::HeightField {
+                            heightfield: cuda_heightfield_pointer,
+                            bellow_heightfield_is_solid: true,
+                            flip_interior: options.flip_interior,
+                        },
+                        position: *collider.position(),
+                        friction: collider.friction(),
+                        penalty_stiffness: options.penalty_stiffness,
+                        grid_boundary_handling: options.grid_boundary_handling,
+                    };
+                    heightfield_buffers.push(cuda_heightfield);
+                    gpu_colliders.push(gpu_collider);
+                } else if let Some(trimesh) = collider.shape().as_trimesh() {
+                    let cuda_trimesh = trimesh.to_cuda()?;
+                    let cuda_trimesh_pointer = cuda_trimesh.as_device_ptr();
+                    let gpu_collider = GpuCollider {
+                        shape: GpuColliderShape::TriMesh {
+                            trimesh: cuda_trimesh_pointer,
+                            flip_interior: options.flip_interior,
+                        },
+                        position: *collider.position(),
+                        friction: collider.friction(),
+                        penalty_stiffness: options.penalty_stiffness,
+                        grid_boundary_handling: options.grid_boundary_handling,
+                    };
+                    trimesh_buffers.push(cuda_trimesh);
+                    gpu_colliders.push(gpu_collider);
+                } else if let Some(polyline) = collider.shape().as_polyline() {
+                    let cuda_vertices = CudaArray1::new(polyline.vertices())?;
+                    let gpu_collider = GpuCollider {
+                        shape: GpuColliderShape::Polyline {
+                            vertices: cuda_vertices.as_device_ptr(),
+                            flip_interior: options.flip_interior,
+                        },
+                        position: *collider.position(),
+                        friction: collider.friction(),
+                        penalty_stiffness: options.penalty_stiffness,
+                        grid_boundary_handling: options.grid_boundary_handling,
+                    };
+                    polyline_buffers.push(cuda_vertices);
+                    gpu_colliders.push(gpu_collider);
+                } else {
+                    let gpu_collider = GpuCollider {
+                        shape: GpuColliderShape::Any,
+                        position: *collider.position(),
+                        friction: collider.friction(),
+                        penalty_stiffness: options.penalty_stiffness,
+                        grid_boundary_handling: options.grid_boundary_handling,
+                    };
+                    gpu_colliders.push(gpu_collider);
+                }
             }
         }
 
         println!("GPU colliders count: {}", gpu_colliders.len());
         println!("Rigid particles count: {}", rigid_particles.len());
+        println!("Vertex count: {}", vertices.len());
+        println!("Index count: {}", indices.len());
 
         let collider_buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
         let rigid_particles_buffer = DeviceBuffer::from_slice(&rigid_particles)?;
+        let vertex_buffer = DeviceBuffer::from_slice(&vertices)?;
+        let index_buffer = DeviceBuffer::from_slice(&indices)?;
 
         Ok(Self {
-            collider_buffer,
-            rigid_particles_buffer,
             gpu_colliders,
             rigid_particles,
+            collider_buffer,
+            rigid_particles_buffer,
+            vertex_buffer,
+            index_buffer,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
             _trimesh_buffers: trimesh_buffers,
@@ -165,9 +200,9 @@ impl CudaColliderSet {
     pub fn as_device(&mut self) -> NewGpuColliderSet {
         NewGpuColliderSet {
             collider_ptr: self.collider_buffer.as_device_ptr(),
-            collider_count: self.gpu_colliders.len(),
             rigid_particle_ptr: self.rigid_particles_buffer.as_device_ptr(),
-            rigid_particle_count: self.rigid_particles.len(),
+            vertex_ptr: self.vertex_buffer.as_device_ptr(),
+            index_ptr: self.index_buffer.as_device_ptr(),
         }
     }
 }

@@ -402,7 +402,6 @@ impl CudaMpmPipeline {
                     timestep_length = timestep_length.min(candidate_dt);
                 }
 
-                // Todo: add cdf update here
                 for (i, context) in contexts.iter_mut().enumerate() {
                     context.make_current()?;
                     let module = &context.module;

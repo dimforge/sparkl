@@ -6,15 +6,24 @@ use na::distance;
 use parry::shape::{TriMesh, Triangle, TypedShape};
 use rapier::geometry::Collider;
 use std::iter::Map;
+use std::ops::Range;
 use std::slice::Iter;
 
-pub fn generate_rigid_particles(
-    rigid_particles: &mut Vec<RigidParticle>,
-    cell_width: Real,
-    collider_index: u32,
+// Todo: move this code somewhere else
+
+pub fn generate_collider_mesh(
     collider: &Collider,
-) {
+    vertices: &mut Vec<Point<Real>>,
+    indices: &mut Vec<u32>,
+) -> Range<usize> {
+    let vertex_offset = vertices.len() as u32;
+    let first_index = indices.len();
+
     match collider.shape().as_typed_shape() {
+        TypedShape::Triangle(&triangle) => {
+            vertices.extend(triangle.vertices());
+            indices.extend([0, 1, 2].iter().map(|index| index + vertex_offset));
+        }
         TypedShape::Cuboid(cuboid) => {
             #[cfg(feature = "dim2")]
             {
@@ -23,80 +32,94 @@ pub fn generate_rigid_particles(
                 let c = Point::new(cuboid.half_extents.x, cuboid.half_extents.y);
                 let d = Point::new(-cuboid.half_extents.x, cuboid.half_extents.y);
 
-                cover_triangle(
-                    rigid_particles,
-                    cell_width,
-                    collider_index,
-                    Triangle::new(a, b, c),
-                );
-                cover_triangle(
-                    rigid_particles,
-                    cell_width,
-                    collider_index,
-                    Triangle::new(a, c, d),
-                );
+                vertices.extend([a, b, c, d]);
+                indices.extend([0, 1, 2, 0, 2, 3].iter().map(|index| index + vertex_offset));
             }
             #[cfg(feature = "dim3")]
             {
-                let (points, triangles) = cuboid.to_trimesh();
-
-                for triangle in triangles {
-                    cover_triangle(
-                        rigid_particles,
-                        cell_width,
-                        collider_index,
-                        Triangle::new(
-                            points[triangle[0] as usize],
-                            points[triangle[1] as usize],
-                            points[triangle[2] as usize],
-                        ),
-                    );
-                }
+                extend_trimesh(cuboid.to_trimesh(), vertices, indices);
             }
         }
         TypedShape::Capsule(capsule) => {
             #[cfg(feature = "dim3")]
             {
-                let (points, triangles) = capsule.to_trimesh(20, 10);
-
-                for triangle in triangles {
-                    cover_triangle(
-                        rigid_particles,
-                        cell_width,
-                        collider_index,
-                        Triangle::new(
-                            points[triangle[0] as usize],
-                            points[triangle[1] as usize],
-                            points[triangle[2] as usize],
-                        ),
-                    );
-                }
+                extend_trimesh(capsule.to_trimesh(20, 10), vertices, indices);
             }
         }
         TypedShape::TriMesh(trimesh) => {
-            for triangle in trimesh.triangles() {
-                cover_triangle(rigid_particles, cell_width, collider_index, triangle);
-            }
+            vertices.extend(trimesh.vertices());
+            indices.extend(
+                trimesh
+                    .indices()
+                    .iter()
+                    .flatten()
+                    .map(|&index| index + vertex_offset),
+            );
         }
-        TypedShape::HeightField(heightfield) =>
-        {
+        TypedShape::HeightField(heightfield) => {
             #[cfg(feature = "dim3")]
-            for triangle in heightfield.triangles() {
-                cover_triangle(rigid_particles, cell_width, collider_index, triangle);
+            {
+                extend_trimesh(heightfield.to_trimesh(), vertices, indices);
             }
-        }
-        TypedShape::Triangle(&triangle) => {
-            cover_triangle(rigid_particles, cell_width, collider_index, triangle);
         }
         _ => {}
     }
+
+    let last_index = indices.len();
+
+    first_index..last_index
 }
 
+fn extend_trimesh(
+    (points, triangles): (Vec<Point<Real>>, Vec<[u32; 3]>),
+    vertices: &mut Vec<Point<Real>>,
+    indices: &mut Vec<u32>,
+) {
+    let vertex_offset = vertices.len() as u32;
+
+    vertices.extend(points);
+    indices.extend(
+        triangles
+            .iter()
+            .flatten()
+            .map(|index| index + vertex_offset),
+    );
+}
+
+pub fn generate_rigid_particles(
+    index_range: Range<usize>,
+    vertices: &[Point<Real>],
+    indices: &[u32],
+    rigid_particles: &mut Vec<RigidParticle>,
+    collider_index: u32,
+    cell_width: Real,
+) {
+    for (triangle_index, triangle) in indices[index_range.clone()].chunks(3).enumerate() {
+        let triangle = Triangle {
+            a: vertices[triangle[0] as usize],
+            b: vertices[triangle[1] as usize],
+            c: vertices[triangle[2] as usize],
+        };
+
+        let triangle_index = (3 * triangle_index + index_range.start) as u32;
+
+        cover_triangle(
+            triangle,
+            rigid_particles,
+            cell_width,
+            collider_index,
+            triangle_index,
+        );
+    }
+}
+
+// Cover the triangle with rigid particles. They should be spaced apart no more than the cell_width.
 fn cover_triangle(
+    triangle: Triangle,
     rigid_particles: &mut Vec<RigidParticle>,
     cell_width: Real,
     collider_index: u32,
-    triangle: Triangle,
+    triangle_index: u32,
 ) {
     // select the longest edge as the base
     let distance_ab = distance(&triangle.b, &triangle.a);
@@ -137,7 +160,6 @@ fn cover_triangle(
     // Calculate the step increments on the base and the height.
     let base_step = cell_width * base_dir;
     let height_step = cell_width * height_dir;
-    let normal = base_dir.cross(&height_dir);
 
     let mut triangle_d = triangle.a;
 
@@ -155,8 +177,8 @@ fn cover_triangle(
         while distance(&triangle_d, &particle_position) <= min_height {
             rigid_particles.push(RigidParticle {
                 position: particle_position,
-                normal,
                 collider_index,
+                triangle_index,
                 color_index,
             });
 

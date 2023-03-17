@@ -6,7 +6,7 @@ use crate::math::{Point, Real, Vector};
 #[repr(C)]
 pub struct RigidParticle {
     pub position: Point<Real>,
-    pub normal: Vector<Real>,
-    pub collider_index: u32,
+    pub collider_index: u32, // Todo: consider packing both indices into a single u32
+    pub triangle_index: u32,
     pub color_index: u32,
 }

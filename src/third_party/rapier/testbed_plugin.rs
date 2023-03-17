@@ -814,14 +814,14 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                 }
 
                                 let color = [active_count, 0.0, 0.0, 1.0];
-                                let color = [0.0, 1.0 - relative_distance * 2.0, 0.0, 1.0];
+                                // let color = [0.0, 1.0 - relative_distance * 2.0, 0.0, 1.0];
 
-                                let mut color = [0.0; 4];
-                                for i in 0..3 {
-                                    let (affinity, tag) = node.cdf_data.color(i);
-                                    color[i as usize] =
-                                        affinity as f32 * (1.0 + 2.0 * tag as f32) / 3.0;
-                                }
+                                // let mut color = [0.0; 4];
+                                // for i in 0..3 {
+                                //     let (affinity, tag) = node.cdf_data.color(i);
+                                //     color[i as usize] =
+                                //         affinity as f32 * (1.0 + 2.0 * tag as f32) / 3.0;
+                                // }
 
                                 instance_data.push(ParticleInstanceData {
                                     position: pos.into(),
