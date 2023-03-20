@@ -800,9 +800,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             let pos_z = node_position.z;
                             let pos = [node_position.x as f32, node_position.y as f32, pos_z];
 
-                            if node.cdf_data.active > 0 {
-                                let active_count = node.cdf_data.active as Real / 20.0;
-                                let unsigned_distance = node.cdf_data.unsigned_distance();
+                            if node.cdf_data.color.affinities() > 0 {
+                                // let active_count = node.cdf_data.active as Real / 20.0;
+                                let unsigned_distance = node.cdf_data.unsigned_distance;
 
                                 let max_distance = cell_width * (3.0 * 1.5_f32.powf(2.0)).sqrt();
 
@@ -813,8 +813,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                     dbg!(max_distance);
                                 }
 
-                                let color = [active_count, 0.0, 0.0, 1.0];
-                                // let color = [0.0, 1.0 - relative_distance * 2.0, 0.0, 1.0];
+                                // let color = [active_count, 0.0, 0.0, 1.0];
+                                let color = [0.0, 1.0 - relative_distance * 2.0, 0.0, 1.0];
 
                                 // let mut color = [0.0; 4];
                                 // for i in 0..3 {

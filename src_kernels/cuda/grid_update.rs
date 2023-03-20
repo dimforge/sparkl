@@ -35,19 +35,24 @@ pub unsafe fn grid_update(
     let cell_width = next_grid.cell_width();
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
-        let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
-        let collider_set = GpuColliderSet {
-            ptr: colliders_ptr,
-            len: num_colliders,
-        };
-        update_single_cell(
-            dt,
-            cell,
-            cell_pos.into(),
-            cell_width,
-            &collider_set,
-            gravity,
-        )
+        // If CDF enabled
+        if false {
+            update_cell(dt, cell, gravity);
+        } else {
+            let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
+            let collider_set = GpuColliderSet {
+                ptr: colliders_ptr,
+                len: num_colliders,
+            };
+            update_single_cell(
+                dt,
+                cell,
+                cell_pos.into(),
+                cell_width,
+                &collider_set,
+                gravity,
+            );
+        }
     }
 }
 
@@ -155,5 +160,11 @@ fn update_single_cell(
     }
 
     cell.momentum_velocity = cell_velocity;
+    cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
+}
+
+fn update_cell(dt: Real, cell: &mut GpuGridNode, gravity: Vector<Real>) {
+    cell.momentum_velocity = ((cell.momentum_velocity + cell.mass * gravity * dt)
+        * sparkl_core::utils::inv_exact(cell.mass));
     cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
 }

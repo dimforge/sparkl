@@ -21,6 +21,7 @@ extern crate sparkl3d_core as sparkl_core;
 
 extern crate nalgebra as na;
 
+pub use self::gpu_cdf::*;
 pub use self::gpu_collider::*;
 pub use self::gpu_constitutive_model::*;
 pub use self::gpu_grid::*;
@@ -29,6 +30,7 @@ pub use self::gpu_plastic_model::*;
 pub use self::gpu_timestep::*;
 
 pub mod cuda;
+mod gpu_cdf;
 mod gpu_collider;
 mod gpu_constitutive_model;
 mod gpu_grid;

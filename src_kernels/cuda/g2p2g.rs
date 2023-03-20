@@ -2,11 +2,12 @@ use crate::cuda::atomic::{AtomicAdd, AtomicInt};
 use crate::cuda::{DefaultParticleUpdater, ParticleUpdater};
 use crate::gpu_grid::{GpuGrid, GpuGridProjectionStatus};
 use crate::{
-    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NBH_SHIFTS, NBH_SHIFTS_SHARED,
-    NUM_CELL_PER_BLOCK,
+    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, GridCdfData,
+    InterpolatedCdfData, NBH_SHIFTS, NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
 };
 use cuda_std::thread;
 use cuda_std::*;
+use na::distance;
 use nalgebra::vector;
 use sparkl_core::math::{Kernel, Matrix, Real, Vector};
 use sparkl_core::prelude::{
@@ -28,7 +29,8 @@ struct GridGatherData {
     psi_momentum: Real,
     psi_velocity: Real,
     projection_scaled_dir: Vector<Real>,
-    projection_status: GpuGridProjectionStatus,
+    projection_status: GpuGridProjectionStatus, // Todo: do we still need this?
+    cdf_data: GridCdfData,
     // NOTE: right now we are using a manually implemented lock, based on
     // integer atomics exchange, to avoid float atomics on shared memory
     // which are super slow.
@@ -46,6 +48,7 @@ pub struct InterpolatedParticleData {
     pub velocity_gradient_det: Real,
     pub projection_scaled_dir: Vector<Real>,
     pub projection_status: GpuGridProjectionStatus,
+    pub cdf_data: InterpolatedCdfData,
 }
 
 impl Default for InterpolatedParticleData {
@@ -57,6 +60,7 @@ impl Default for InterpolatedParticleData {
             velocity_gradient_det: na::zero(),
             projection_scaled_dir: na::zero(),
             projection_status: GpuGridProjectionStatus::NotComputed,
+            cdf_data: InterpolatedCdfData::default(),
         }
     }
 }
@@ -232,6 +236,9 @@ unsafe fn particle_g2p2g(
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+        // interpolated_data
+        //     .cdf_data
+        //     .interpolate_color(cell.cdf_data, weight);
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
@@ -243,6 +250,24 @@ unsafe fn particle_g2p2g(
                 weight * (midcell_mass - cell.prev_mass) * dpt * artificial_pressure_stiffness;
         }
     }
+    //
+    //interpolated_data.cdf_data.compute_tags();
+    //
+    //for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
+    //    let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
+    //    #[cfg(feature = "dim2")]
+    //    let weight = w[0][shift.x] * w[1][shift.y];
+    //    #[cfg(feature = "dim3")]
+    //    let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
+    //
+    //    let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+    //    interpolated_data.cdf_data.interpolate_distance_and_normal(
+    //        cell.cdf_data,
+    //        weight,
+    //        inv_d,
+    //        dpt,
+    //    );
+    //}
 
     {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
@@ -424,12 +449,14 @@ unsafe fn transfer_global_blocks_to_shared_memory(
                 shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
                 shared_node.projection_status = global_node.projection_status;
                 shared_node.prev_mass = global_node.prev_mass;
+                shared_node.cdf_data = global_node.cdf_data;
             } else {
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
                 shared_node.projection_scaled_dir = na::zero();
                 shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
                 shared_node.prev_mass = 0.0;
+                shared_node.cdf_data = GridCdfData::default();
             }
 
             shared_node.psi_momentum = 0.0;
@@ -468,6 +495,7 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             shared_node.prev_mass = 0.0;
             shared_node.projection_scaled_dir = na::zero();
             shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
+            shared_node.cdf_data = GridCdfData::default();
             shared_node.lock = FREE;
         }
     }

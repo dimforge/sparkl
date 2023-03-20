@@ -1,5 +1,5 @@
-use crate::cuda::{ActiveBlockHeader, AtomicAdd, AtomicInt, GridHashMap, HaloState};
-use crate::DevicePointer;
+use crate::cuda::{ActiveBlockHeader, AtomicAdd, GridHashMap, HaloState};
+use crate::{DevicePointer, GridCdfData};
 use na::vector;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
@@ -458,65 +458,6 @@ impl GpuGridProjectionStatus {
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-pub struct CdfData {
-    // The unsigned distance to the closest collider.
-    min_unsigned_distance: u32,
-    // The affinity and tag (inside/ outside) information stored for up to 16 colliders.
-    color: u32,
-    pub active: u32,
-    // pub real_pos: Point<Real>, // the actual position of the node
-    // pub cdf_pos: Point<Real>,  // the falsely assumed position of the node in the cdf kernel
-    // pub particle_pos: Point<Real>,
-}
-
-impl Default for CdfData {
-    fn default() -> Self {
-        Self {
-            min_unsigned_distance: u32::MAX,
-            color: 0,
-            active: 0,
-            // real_pos: Point::default(),
-            // cdf_pos: Point::default(),
-            // particle_pos: Point::default(),
-        }
-    }
-}
-
-impl CdfData {
-    pub const FACTOR: f32 = 1_000_000.0;
-
-    pub fn update(&mut self, signed_distance: f32, collider_index: u32) {
-        let unsigned_distance = signed_distance.abs();
-        let affinity = 1;
-        let tag = if signed_distance >= 0.0 { 1 } else { 0 };
-        let color = ((affinity << 1) | tag) << (collider_index << 1);
-
-        let integer_unsigned_distance = (unsigned_distance * Self::FACTOR) as u32;
-
-        unsafe {
-            self.min_unsigned_distance
-                .global_red_min(integer_unsigned_distance);
-            self.color.global_red_or(color);
-            self.active.global_red_add(1);
-        }
-    }
-
-    pub fn unsigned_distance(&self) -> f32 {
-        self.min_unsigned_distance as f32 / Self::FACTOR
-    }
-
-    pub fn color(&self, collider_index: u32) -> (u32, u32) {
-        let collider_color = self.color >> (collider_index << 1);
-        let affinity = (collider_color >> 1) & 1;
-        let tag = collider_color & 1;
-
-        (affinity, tag)
-    }
-}
-
-#[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug)]
-#[repr(C)]
 pub struct GpuGridNode {
     pub mass: Real,
     // That’s where the particles transfer their momentum.
@@ -529,7 +470,7 @@ pub struct GpuGridNode {
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
-    pub cdf_data: CdfData,
+    pub cdf_data: GridCdfData,
 }
 
 impl Default for GpuGridNode {
@@ -542,7 +483,7 @@ impl Default for GpuGridNode {
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
-            cdf_data: CdfData::default(),
+            cdf_data: GridCdfData::default(),
         }
     }
 }
