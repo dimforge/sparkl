@@ -1,5 +1,5 @@
 use crate::cuda::{ActiveBlockHeader, AtomicAdd, GridHashMap, HaloState};
-use crate::{DevicePointer, GridCdfData};
+use crate::{DevicePointer, NodeCdf};
 use na::vector;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
@@ -470,7 +470,7 @@ pub struct GpuGridNode {
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
-    pub cdf_data: GridCdfData,
+    pub cdf_data: NodeCdf,
 }
 
 impl Default for GpuGridNode {
@@ -483,7 +483,7 @@ impl Default for GpuGridNode {
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
-            cdf_data: GridCdfData::default(),
+            cdf_data: NodeCdf::default(),
         }
     }
 }
