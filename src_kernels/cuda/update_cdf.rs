@@ -17,11 +17,6 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: NewGpuColliderSet
         thread::thread_idx_z() as i64
     ];
 
-    #[cfg(feature = "dim2")]
-    let tid = (shift.x * 3 + shift.y) as u32;
-    #[cfg(feature = "dim3")]
-    let tid = (shift.x * 9 + shift.y * 3 + shift.z) as u32;
-
     let particle_index = thread::block_idx_x();
     let particle = collider_set.rigid_particle(particle_index);
 
@@ -43,7 +38,7 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: NewGpuColliderSet
             let projected_point = node_position - signed_distance * normal;
 
             if inside_triangle(projected_point, triangle) {
-                node.cdf_data.update(signed_distance, collider_index, tid);
+                node.cdf_data.update(signed_distance, collider_index);
             }
         }
     }

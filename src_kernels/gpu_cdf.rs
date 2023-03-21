@@ -60,13 +60,12 @@ impl Default for GridCdfData {
 }
 
 impl GridCdfData {
-    pub fn update(&mut self, signed_distance: Real, collider_index: u32, tid: u32) {
+    pub fn update(&mut self, signed_distance: Real, collider_index: u32) {
         let unsigned_distance = signed_distance.abs();
         let tag = if signed_distance >= 0.0 { 1 } else { 0 };
 
-        // Todo: fix IllegalAddress error
         unsafe {
-            while self.lock.shared_atomic_exch_acq(LOCKED) == LOCKED {}
+            while self.lock.global_atomic_exch_acq(LOCKED) == LOCKED {}
 
             self.color.set_affinity(collider_index);
 
@@ -76,15 +75,14 @@ impl GridCdfData {
                 self.unsigned_distance = unsigned_distance;
             }
 
-            self.lock.shared_atomic_exch_rel(FREE);
+            self.lock.global_atomic_exch_rel(FREE);
         }
     }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct InterpolatedCdfData {
-    affinities: u32,
-    tags: u32,
+    color: CdfColor,
     weighted_tags: [f32; 16],
     signed_distance: f32,
     gradient: Vector<Real>,
@@ -94,21 +92,26 @@ impl InterpolatedCdfData {
     pub fn interpolate_color(&mut self, node_cdf: GridCdfData, weight: Real) {
         let unsigned_distance = node_cdf.unsigned_distance;
 
-        self.affinities |= node_cdf.color.affinities();
+        // or together all affinities
+        self.color.0 |= node_cdf.color.affinities();
 
         for collider_index in 0..16 {
+            // make sure to only include tags into the weight, that are actually valid
+            // weight them by their signed distances to prevent floating point errors
+            let affinity = node_cdf.color.affinity(collider_index as u32) as f32;
             let tag = node_cdf.color.tag(collider_index as u32);
-            let tag = if tag == 1 { 1.0 } else { -1.0 };
+            let weighted_tag = unsigned_distance * if tag == 1 { 1.0 } else { -1.0 };
 
-            self.weighted_tags[collider_index] += weight * unsigned_distance * tag;
+            self.weighted_tags[collider_index] += weight * weighted_tag * affinity;
         }
     }
 
     pub fn compute_tags(&mut self) {
+        // turn the weighted tags into the proper tags of the particle
         for collider_index in 0..16 {
             let weighted_tag = self.weighted_tags[collider_index];
             let tag = if weighted_tag >= 0.0 { 1 } else { 0 };
-            self.tags = tag << (collider_index as u32 + 16);
+            self.color.change_tag(collider_index as u32, tag);
         }
     }
 
@@ -119,6 +122,11 @@ impl InterpolatedCdfData {
         inv_d: Real,
         dpt: Vector<Real>,
     ) {
+        // for now lets assume we only have a single collider
+        let affinity = node_cdf.color.affinity(0);
+        let tag = node_cdf.color.tag(0);
+        let unsigned_distance = node_cdf.unsigned_distance;
+        let signed_distance = unsigned_distance * if tag == 1 { 1.0 } else { -1.0 };
     }
 }
 

@@ -17,6 +17,8 @@ pub trait AtomicInt {
     unsafe fn global_atomic_cas(&mut self, cmp: Self, val: Self) -> Self;
     unsafe fn shared_atomic_exch_acq(&mut self, val: Self) -> Self;
     unsafe fn shared_atomic_exch_rel(&mut self, val: Self) -> Self;
+    unsafe fn global_atomic_exch_acq(&mut self, val: Self) -> Self;
+    unsafe fn global_atomic_exch_rel(&mut self, val: Self) -> Self;
     unsafe fn global_atomic_dec(&mut self) -> Self;
 }
 
@@ -203,6 +205,52 @@ impl AtomicInt for u32 {
             "cvta.to.shared.u64 {gbl_ptr}, {org_ptr};\
             atom.release.shared.exch.b32 {old}, [{gbl_ptr}], {number};",
             gbl_ptr = out(reg64) shared_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg32) _rhs,
+            old = out(reg32) old,
+            );
+
+            old
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        return unimplemented!();
+    }
+
+    unsafe fn global_atomic_exch_acq(&mut self, _rhs: Self) -> Self {
+        #[cfg(target_os = "cuda")]
+        {
+            let mut old = 0;
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u32 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            atom.acquire.global.exch.b32 {old}, [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg32) _rhs,
+            old = out(reg32) old,
+            );
+
+            old
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        return unimplemented!();
+    }
+
+    unsafe fn global_atomic_exch_rel(&mut self, _rhs: Self) -> Self {
+        #[cfg(target_os = "cuda")]
+        {
+            let mut old = 0;
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u32 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            atom.release.global.exch.b32 {old}, [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
             org_ptr = in(reg64) integer_addr,
             number = in(reg32) _rhs,
             old = out(reg32) old,
@@ -423,6 +471,52 @@ impl AtomicInt for u64 {
             "cvta.to.shared.u64 {gbl_ptr}, {org_ptr};\
             atom.release.shared.exch.b64 {old}, [{gbl_ptr}], {number};",
             gbl_ptr = out(reg64) shared_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg64) _rhs,
+            old = out(reg64) old
+            );
+
+            old
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        return unimplemented!();
+    }
+
+    unsafe fn global_atomic_exch_acq(&mut self, _rhs: Self) -> Self {
+        #[cfg(target_os = "cuda")]
+        {
+            let mut old = 0;
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u64 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            atom.acquire.global.exch.b64 {old}, [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
+            org_ptr = in(reg64) integer_addr,
+            number = in(reg64) _rhs,
+            old = out(reg64) old
+            );
+
+            old
+        }
+
+        #[cfg(not(target_os = "cuda"))]
+        return unimplemented!();
+    }
+
+    unsafe fn global_atomic_exch_rel(&mut self, _rhs: Self) -> Self {
+        #[cfg(target_os = "cuda")]
+        {
+            let mut old = 0;
+            let integer_addr = self as *mut _;
+            let mut global_integer_addr: *mut u64 = core::ptr::null_mut();
+
+            asm!(
+            "cvta.to.global.u64 {gbl_ptr}, {org_ptr};\
+            atom.release.global.exch.b64 {old}, [{gbl_ptr}], {number};",
+            gbl_ptr = out(reg64) global_integer_addr,
             org_ptr = in(reg64) integer_addr,
             number = in(reg64) _rhs,
             old = out(reg64) old
