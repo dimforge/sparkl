@@ -8,7 +8,7 @@ use crate::kernels::{
 };
 use crate::math::{Real, DIM};
 use crate::utils::PrefixSumWorkspace;
-use cust::memory::{GpuBuffer, LockedBox, LockedBuffer};
+use cust::memory::{GpuBuffer, LockedBuffer};
 use cust::{
     error::CudaResult,
     launch,

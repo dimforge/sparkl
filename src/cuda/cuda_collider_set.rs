@@ -8,7 +8,7 @@ use cust::{
     error::CudaResult,
     memory::{DeviceBuffer, DevicePointer},
 };
-use kernels::{GpuColliderSet, GpuColliderShape, NewGpuColliderSet};
+use kernels::{GpuColliderShape, NewGpuColliderSet};
 use parry::{
     math::{Point, Real},
     shape::{CudaHeightField, CudaTriMesh},

@@ -1,8 +1,8 @@
 use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
-    ParticleVolume,
+    ActiveTimestepBounds, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
+    ParticleVelocity, ParticleVolume,
 };
 
 #[cfg(not(feature = "std"))]
@@ -33,6 +33,7 @@ pub trait ParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        particle_cdf: &ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
@@ -81,6 +82,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        particle_cdf: &ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
@@ -202,21 +204,9 @@ impl ParticleUpdater for DefaultParticleUpdater {
          */
         let mut penalty_force = Vector::zeros();
         if false {
-            // enable_boundary_particle_projection {
-            for collider in colliders.iter() {
-                if collider.penalty_stiffness > 0.0 {
-                    if let Some(proj) = collider.shape.project_point_with_max_dist(
-                        &collider.position,
-                        &particle_pos.point,
-                        false,
-                        100.0 * cell_width,
-                    ) {
-                        if proj.is_inside {
-                            penalty_force +=
-                                (proj.point - particle_pos.point) * collider.penalty_stiffness;
-                        }
-                    }
-                }
+            if particle_cdf.distance < 0.0 {
+                let penalty_stiffness = 0.001;
+                penalty_force = penalty_stiffness * particle_cdf.distance * particle_cdf.normal;
             }
         }
 

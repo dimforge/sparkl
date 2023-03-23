@@ -36,7 +36,7 @@ pub unsafe fn grid_update(
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
         // If CDF enabled
-        if false {
+        if true {
             update_cell(dt, cell, gravity);
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;

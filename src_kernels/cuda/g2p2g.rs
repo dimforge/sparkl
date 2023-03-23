@@ -11,7 +11,8 @@ use na::distance;
 use nalgebra::vector;
 use sparkl_core::math::{Kernel, Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    DamageModel, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity, ParticleVolume,
+    DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
+    ParticleVolume,
 };
 
 #[cfg(feature = "dim2")]
@@ -48,7 +49,6 @@ pub struct InterpolatedParticleData {
     pub velocity_gradient_det: Real,
     pub projection_scaled_dir: Vector<Real>,
     pub projection_status: GpuGridProjectionStatus,
-    pub cdf_data: InterpolatedCdfData,
 }
 
 impl Default for InterpolatedParticleData {
@@ -60,7 +60,6 @@ impl Default for InterpolatedParticleData {
             velocity_gradient_det: na::zero(),
             projection_scaled_dir: na::zero(),
             projection_status: GpuGridProjectionStatus::NotComputed,
-            cdf_data: InterpolatedCdfData::default(),
         }
     }
 }
@@ -75,6 +74,7 @@ pub unsafe fn g2p2g(
     particles_vel: *mut ParticleVelocity,
     particles_volume: *mut ParticleVolume,
     particles_phase: *mut ParticlePhase,
+    particles_cdf: *mut ParticleCdf,
     sorted_particle_ids: *const u32,
     models: *mut GpuParticleModel,
     curr_grid: GpuGrid,
@@ -91,6 +91,7 @@ pub unsafe fn g2p2g(
         particles_vel,
         particles_volume,
         particles_phase,
+        particles_cdf,
         sorted_particle_ids,
         curr_grid,
         next_grid,
@@ -110,6 +111,7 @@ pub unsafe fn g2p2g_generic(
     particles_vel: *mut ParticleVelocity,
     particles_volume: *mut ParticleVolume,
     particles_phase: *mut ParticlePhase,
+    particles_cdf: *mut ParticleCdf,
     sorted_particle_ids: *const u32,
     curr_grid: GpuGrid,
     mut next_grid: GpuGrid,
@@ -152,6 +154,7 @@ pub unsafe fn g2p2g_generic(
         let mut particle_vel_i = *particles_vel.add(particle_id as usize);
         let mut particle_volume_i = *particles_volume.add(particle_id as usize);
         let mut particle_phase_i = *particles_phase.add(particle_id as usize);
+        let mut particle_cdf_i = *particles_cdf.add(particle_id as usize);
 
         particle_g2p2g(
             dt,
@@ -162,6 +165,7 @@ pub unsafe fn g2p2g_generic(
             &mut particle_vel_i,
             &mut particle_volume_i,
             &mut particle_phase_i,
+            &mut particle_cdf_i,
             shared_nodes,
             next_grid.cell_width(),
             damage_model,
@@ -173,6 +177,7 @@ pub unsafe fn g2p2g_generic(
         *particles_vel.add(particle_id as usize) = particle_vel_i;
         *particles_volume.add(particle_id as usize) = particle_volume_i;
         *particles_phase.add(particle_id as usize) = particle_phase_i;
+        *particles_cdf.add(particle_id as usize) = particle_cdf_i;
     }
 
     // Sync before writeback.
@@ -189,6 +194,7 @@ unsafe fn particle_g2p2g(
     particle_vel: &mut ParticleVelocity,
     particle_volume: &mut ParticleVolume,
     particle_phase: &mut ParticlePhase,
+    particle_cdf: &mut ParticleCdf,
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     _damage_model: DamageModel,
@@ -201,6 +207,7 @@ unsafe fn particle_g2p2g(
 
     // APIC grid-to-particle transfer.
     let mut interpolated_data = InterpolatedParticleData::default();
+    let mut interpolated_cdf_data = InterpolatedCdfData::default();
 
     let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
@@ -236,9 +243,7 @@ unsafe fn particle_g2p2g(
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
-        interpolated_data
-            .cdf_data
-            .interpolate_color(cell.cdf_data, weight);
+        interpolated_cdf_data.accumulate_color(cell.cdf_data, weight);
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
@@ -251,7 +256,7 @@ unsafe fn particle_g2p2g(
         }
     }
 
-    interpolated_data.cdf_data.compute_tags();
+    interpolated_cdf_data.compute_tags();
 
     for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
         let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
@@ -261,12 +266,12 @@ unsafe fn particle_g2p2g(
         let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 
         let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
-        interpolated_data
-            .cdf_data
-            .interpolate_distance_and_normal(cell.cdf_data, weight, dpt);
+        interpolated_cdf_data.accumulate_distance_and_normal(cell.cdf_data, weight, dpt);
     }
 
-    let particle_cdf = interpolated_data.cdf_data.compute_particle_cdf();
+    let new_particle_cdf = interpolated_cdf_data.compute_particle_cdf();
+
+    *particle_cdf = new_particle_cdf;
 
     {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
@@ -299,6 +304,7 @@ unsafe fn particle_g2p2g(
         particle_vel,
         particle_volume,
         particle_phase,
+        &particle_cdf,
         &mut interpolated_data,
     ) {
         let inv_d = Kernel::inv_d(cell_width);

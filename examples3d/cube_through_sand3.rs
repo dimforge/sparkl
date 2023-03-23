@@ -28,37 +28,37 @@ pub fn init_world(testbed: &mut Testbed) {
             heigths[(i, j)] = -(i as f32 * std::f32::consts::PI / (nx as f32)).sin();
         }
     }
-    // colliders.insert(
-    //     ColliderBuilder::heightfield(
-    //         heigths.into(),
-    //         vector![ground_half_side * 2.0, 10.0, ground_half_side * 2.0],
-    //     )
-    //     .translation(vector![0.0, 10.0, 0.0])
-    //     .sensor(true)
-    //     .build(),
-    // );
     colliders.insert(
-        ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-            .translation(vector![10.0, 8.0, 5.0])
-            .sensor(true)
-            .build(),
-    );
-    colliders.insert(
-        ColliderBuilder::capsule_y(2.0, 1.0)
-            .translation(vector![10.0, 4.0, 5.0])
-            .sensor(true)
-            .build(),
-    );
-    colliders.insert(
-        ColliderBuilder::triangle(
-            Point::new(6.0, 2.0, 4.0),
-            Point::new(12.0, 2.0, 4.0),
-            Point::new(10.0, 8.0, 4.0),
+        ColliderBuilder::heightfield(
+            heigths.into(),
+            vector![ground_half_side * 2.0, 10.0, ground_half_side * 2.0],
         )
+        .translation(vector![0.0, 10.0, 0.0])
         .sensor(true)
-        .translation(vector![-5.0, 0.0, 1.0])
         .build(),
     );
+    // colliders.insert(
+    //     ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+    //         .translation(vector![10.0, 8.0, 5.0])
+    //         .sensor(true)
+    //         .build(),
+    // );
+    // colliders.insert(
+    //     ColliderBuilder::capsule_y(2.0, 1.0)
+    //         .translation(vector![10.0, 4.0, 5.0])
+    //         .sensor(true)
+    //         .build(),
+    // );
+    // colliders.insert(
+    //     ColliderBuilder::triangle(
+    //         Point::new(6.0, 2.0, 4.0),
+    //         Point::new(12.0, 2.0, 4.0),
+    //         Point::new(10.0, 8.0, 4.0),
+    //     )
+    //     .sensor(true)
+    //     .translation(vector![-5.0, 0.0, 1.0])
+    //     .build(),
+    // );
 
     const NU: Real = 0.2;
     const E: Real = 1.0e7;
@@ -110,6 +110,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    plugin.particles_rendering_mode = ParticlesRenderingMode::Cdf;
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;

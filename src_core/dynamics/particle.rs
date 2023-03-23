@@ -1,4 +1,5 @@
 use crate::math::{Matrix, Point, Real, Vector};
+use crate::prelude::CdfColor;
 use crate::utils::RealStruct;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
@@ -145,6 +146,26 @@ impl Default for ParticlePhase {
         Self {
             phase: 1.0,
             psi_pos: 0.0,
+        }
+    }
+}
+
+#[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct ParticleCdf {
+    pub color: CdfColor,
+    pub distance: Real,
+    pub normal: Vector<Real>,
+}
+
+impl Default for ParticleCdf {
+    fn default() -> Self {
+        Self {
+            color: CdfColor::default(),
+            distance: 0.0,
+            normal: na::zero(),
         }
     }
 }

@@ -3,11 +3,9 @@ use crate::core::{
     rigid_particles::RigidParticle,
 };
 use na::distance;
-use parry::shape::{TriMesh, Triangle, TypedShape};
+use parry::shape::{Triangle, TypedShape};
 use rapier::geometry::Collider;
-use std::iter::Map;
 use std::ops::Range;
-use std::slice::Iter;
 
 // Todo: move this code somewhere else
 
