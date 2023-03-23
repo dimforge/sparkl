@@ -649,7 +649,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
         let show_color = false;
         let show_distance = true;
-        let show_normal = false;
+        let show_normal = true;
 
         let show_particles = true;
         let show_nodes = true;
@@ -754,6 +754,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             let unsigned_distance = particle.distance.abs();
                             let relative_distance = unsigned_distance / (cell_width * 1.5);
                             color[0] = sign.abs() * na::clamp(1.0 - relative_distance, 0.0, 1.0);
+                            color[1] = if particle.distance > 0.0 { 1.0 } else { 0.0 };
                         }
 
                         color
@@ -762,16 +763,24 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
                 if show_normal {
                     let normal = particle.normal;
+                    let zero: Vector<Real> = na::zero();
 
-                    if true {
+                    let intensity = if show_distance {
+                        let relative_distance = particle.distance.abs() / (cell_width * 1.5);
+                        na::clamp(1.0 - relative_distance, 0.0, 1.0)
+                    } else {
+                        1.0
+                    };
+
+                    if normal == zero {
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
-                            scale: 0.01,
-                            color: [0.0, 1.0, 0.0, 1.0],
+                            scale: 0.02,
+                            color: [0.0, 0.0, 0.0, 1.0],
                         });
                     } else {
-                        let pos1 = particle.position + normal * 0.02;
-                        let pos2 = particle.position - normal * 0.02;
+                        let pos1 = particle.position + normal * 0.005;
+                        let pos2 = particle.position - normal * 0.005;
 
                         #[cfg(feature = "dim2")]
                         let pos_z = 0.0;
@@ -781,8 +790,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
-                            scale: 0.01,
-                            color: [1.0, 0.0, 0.0, 1.0],
+                            scale: 0.02,
+                            color: [intensity, 0.0, 0.0, 1.0],
                         });
 
                         #[cfg(feature = "dim2")]
@@ -793,8 +802,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
-                            scale: 0.01,
-                            color: [0.0, 0.0, 1.0, 1.0],
+                            scale: 0.02,
+                            color: [0.0, 0.0, intensity, 1.0],
                         });
                     }
                 } else {

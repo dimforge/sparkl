@@ -117,23 +117,22 @@ impl InterpolatedCdfData {
         // for now lets assume we only have a single collider
         let affinity = node_cdf.color.affinity(0);
 
-        // if affinity == 0 {
-        //     return;
-        // }
+        if affinity == 0 {
+            return;
+        }
 
         let particle_tag = self.color.tag(0);
         let node_tag = node_cdf.color.tag(0);
 
+        // Todo: decide how to select the sign
+        // use the sign difference between particle and node
         let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
-        let sign = 1.0; // keep unsigned for now
+        // use sign of the node
+        // let sign = node_cdf.color.sign(0);
+        // keep unsigned for now
+        // let sign = 1.0;
 
-        let mut distance = sign * node_cdf.unsigned_distance;
-
-        // affinity hack
-        // if affinity == 0 {
-        //     distance = 1.0;
-        // }
-
+        let distance = sign * node_cdf.unsigned_distance;
         let weighted_distance = weight * distance;
         let outer_product = difference * difference.transpose();
 
@@ -172,23 +171,26 @@ impl InterpolatedCdfData {
 
     pub fn compute_particle_cdf(&self) -> ParticleCdf {
         if let Some(inverse_matrix) = self.weight_matrix.try_inverse() {
-            let result = inverse_matrix * self.weight_vector;
+            // discard the distance, if the sample weight is too insignificant
+            if self.weight_matrix.determinant().abs() > 1.0e-8 {
+                let result = inverse_matrix * self.weight_vector;
 
-            let distance = result.x;
-            let gradient = result.remove_row(0);
-            let normal = gradient.normalize();
+                let distance = result.x;
+                let gradient = result.remove_row(0);
+                let normal = gradient.normalize();
 
-            ParticleCdf {
-                color: self.color,
-                distance,
-                normal,
+                return ParticleCdf {
+                    color: self.color,
+                    distance,
+                    normal,
+                };
             }
-        } else {
-            ParticleCdf {
-                color: self.color,
-                distance: na::zero(),
-                normal: na::zero(),
-            }
+        }
+
+        ParticleCdf {
+            color: CdfColor::default(),
+            distance: na::zero(),
+            normal: na::zero(),
         }
     }
 }
