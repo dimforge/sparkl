@@ -5,6 +5,7 @@ use sparkl_core::prelude::{
     ParticleVelocity, ParticleVolume,
 };
 
+use na::vector;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
 
@@ -33,7 +34,7 @@ pub trait ParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        particle_cdf: &ParticleCdf,
+        particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
@@ -82,7 +83,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
-        particle_cdf: &ParticleCdf,
+        particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
@@ -198,15 +199,22 @@ impl ParticleUpdater for DefaultParticleUpdater {
             }
         }
 
+        let mut new_particle_cdf = interpolated_data.compute_particle_cdf();
+        let penetration = new_particle_cdf
+            .color
+            .check_and_correct_penetration(particle_cdf.color);
+        *particle_cdf = new_particle_cdf;
+
         /*
          * Particle projection.
          * TODO: refactor to its own function.
          */
         let mut penalty_force = Vector::zeros();
-        if false {
-            if particle_cdf.distance < 0.0 {
-                let penalty_stiffness = 0.001;
-                penalty_force = penalty_stiffness * particle_cdf.distance * particle_cdf.normal;
+        if true {
+            if penetration {
+                // Todo: figure out why this does nothing
+                let penalty_stiffness = 0.01;
+                penalty_force = -penalty_stiffness * particle_cdf.distance * particle_cdf.normal;
             }
         }
 

@@ -647,9 +647,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
     ) {
         self.step_id += 1;
 
-        let show_color = false;
-        let show_distance = true;
-        let show_normal = true;
+        let show_color = true;
+        let show_distance = false;
+        let show_normal = false;
 
         let show_particles = true;
         let show_nodes = true;
@@ -742,6 +742,14 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         .into(),
                     ParticlesRenderingMode::Cdf => {
                         let mut color = [0.0; 3];
+
+                        if particle.color.1 != 0 {
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale: 0.05,
+                                color: [0.0, 1.0, 1.0, 1.0],
+                            });
+                        }
 
                         if show_color {
                             for i in 0..3 {

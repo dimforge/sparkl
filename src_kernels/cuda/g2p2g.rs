@@ -2,17 +2,18 @@ use crate::cuda::atomic::{AtomicAdd, AtomicInt};
 use crate::cuda::{DefaultParticleUpdater, ParticleUpdater};
 use crate::gpu_grid::{GpuGrid, GpuGridProjectionStatus};
 use crate::{
-    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, InterpolatedCdfData, NodeCdf,
-    NBH_SHIFTS, NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
+    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
+    NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
 };
 use cuda_std::thread;
+use cuda_std::GpuFloat;
 use cuda_std::*;
 use na::distance;
-use nalgebra::vector;
+use na::{matrix, vector, Matrix3, Matrix4, Vector3, Vector4};
 use sparkl_core::math::{Kernel, Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
-    ParticleVolume,
+    CdfColor, DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
+    ParticleVelocity, ParticleVolume,
 };
 
 #[cfg(feature = "dim2")]
@@ -49,6 +50,16 @@ pub struct InterpolatedParticleData {
     pub velocity_gradient_det: Real,
     pub projection_scaled_dir: Vector<Real>,
     pub projection_status: GpuGridProjectionStatus,
+    color: CdfColor,
+    weighted_tags: [Real; 16],
+    #[cfg(feature = "dim2")]
+    weight_matrix: Matrix3<Real>,
+    #[cfg(feature = "dim2")]
+    weight_vector: Vector3<Real>,
+    #[cfg(feature = "dim3")]
+    weight_matrix: Matrix4<Real>,
+    #[cfg(feature = "dim3")]
+    weight_vector: Vector4<Real>,
 }
 
 impl Default for InterpolatedParticleData {
@@ -60,6 +71,119 @@ impl Default for InterpolatedParticleData {
             velocity_gradient_det: na::zero(),
             projection_scaled_dir: na::zero(),
             projection_status: GpuGridProjectionStatus::NotComputed,
+            color: Default::default(),
+            weighted_tags: [na::zero(); 16],
+            weight_matrix: na::zero(),
+            weight_vector: na::zero(),
+        }
+    }
+}
+
+impl InterpolatedParticleData {
+    pub fn accumulate_color(&mut self, node_cdf: NodeCdf, weight: Real) {
+        // or together all affinities
+        self.color.0 |= node_cdf.color.affinities();
+
+        for collider_index in 0..16 {
+            // make sure to only include tags into the weight, that are actually valid
+            // weight them by their signed distances to prevent floating point errors
+            if let Some(signed_distance) = node_cdf.signed_distance(collider_index as u32) {
+                self.weighted_tags[collider_index] += weight * signed_distance;
+            }
+        }
+    }
+
+    pub fn compute_tags(&mut self) {
+        // turn the weighted tags into the proper tags of the particle
+        for collider_index in 0..16 {
+            let weighted_tag = self.weighted_tags[collider_index];
+            self.color.update_tag(collider_index as u32, weighted_tag);
+        }
+    }
+
+    pub fn accumulate_distance_and_normal(
+        &mut self,
+        node_cdf: NodeCdf,
+        weight: Real,
+        difference: Vector<Real>,
+    ) {
+        // for now lets assume we only have a single collider
+        let affinity = node_cdf.color.affinity(0);
+
+        if affinity == 0 {
+            return;
+        }
+
+        let particle_tag = self.color.tag(0);
+        let node_tag = node_cdf.color.tag(0);
+
+        // Todo: decide how to select the sign
+        // use the sign difference between particle and node
+        // let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
+        // use sign of the node
+        let sign = node_cdf.color.sign(0);
+        // keep unsigned for now
+        // let sign = 1.0;
+
+        let distance = sign * node_cdf.unsigned_distance;
+        let weighted_distance = weight * distance;
+        let outer_product = difference * difference.transpose();
+
+        #[cfg(feature = "dim2")]
+        {
+            self.weight_vector += weighted_distance * vector![1.0, difference.x, difference.y];
+        }
+
+        #[cfg(feature = "dim3")]
+        {
+            self.weight_vector +=
+                weighted_distance * vector![1.0, difference.x, difference.y, difference.z];
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            self.weight_matrix += weight
+                * matrix![
+                    1.0,          difference.x,          difference.y;
+                    difference.x, outer_product[(0, 0)], outer_product[(0, 1)];
+                    difference.y, outer_product[(1, 0)], outer_product[(1, 1)]
+                ];
+        }
+
+        #[cfg(feature = "dim3")]
+        {
+            self.weight_matrix += weight
+                * matrix![
+                    1.0,          difference.x,          difference.y,          difference.z;
+                    difference.x, outer_product[(0, 0)], outer_product[(0, 1)], outer_product[(0, 2)];
+                    difference.y, outer_product[(1, 0)], outer_product[(1, 1)], outer_product[(1, 2)];
+                    difference.z, outer_product[(2, 0)], outer_product[(2, 1)], outer_product[(2, 2)]
+                ];
+        }
+    }
+
+    pub fn compute_particle_cdf(&self) -> ParticleCdf {
+        if let Some(inverse_matrix) = self.weight_matrix.try_inverse() {
+            // discard the distance, if the sample weight is too insignificant
+            if self.weight_matrix.determinant().abs() > 1.0e-8 {
+                let result = inverse_matrix * self.weight_vector;
+
+                let distance = result.x;
+                let gradient = result.remove_row(0);
+                let normal = gradient.normalize();
+
+                return ParticleCdf {
+                    color: self.color,
+                    distance,
+                    normal,
+                };
+            }
+        }
+
+        ParticleCdf {
+            color: CdfColor::default(),
+            distance: na::zero(),
+            normal: na::zero(),
         }
     }
 }
@@ -207,7 +331,6 @@ unsafe fn particle_g2p2g(
 
     // APIC grid-to-particle transfer.
     let mut interpolated_data = InterpolatedParticleData::default();
-    let mut interpolated_cdf_data = InterpolatedCdfData::default();
 
     let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
@@ -243,7 +366,7 @@ unsafe fn particle_g2p2g(
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
-        interpolated_cdf_data.accumulate_color(cell.cdf_data, weight);
+        interpolated_data.accumulate_color(cell.cdf_data, weight);
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
@@ -256,7 +379,7 @@ unsafe fn particle_g2p2g(
         }
     }
 
-    interpolated_cdf_data.compute_tags();
+    interpolated_data.compute_tags();
 
     for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
         let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
@@ -266,12 +389,8 @@ unsafe fn particle_g2p2g(
         let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 
         let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
-        interpolated_cdf_data.accumulate_distance_and_normal(cell.cdf_data, weight, dpt);
+        interpolated_data.accumulate_distance_and_normal(cell.cdf_data, weight, dpt);
     }
-
-    let new_particle_cdf = interpolated_cdf_data.compute_particle_cdf();
-
-    *particle_cdf = new_particle_cdf;
 
     {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
@@ -304,7 +423,7 @@ unsafe fn particle_g2p2g(
         particle_vel,
         particle_volume,
         particle_phase,
-        &particle_cdf,
+        particle_cdf,
         &mut interpolated_data,
     ) {
         let inv_d = Kernel::inv_d(cell_width);

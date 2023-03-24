@@ -3,13 +3,9 @@ use crate::math::Real;
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Zeroable)]
-pub struct CdfColor(pub u32);
+pub struct CdfColor(pub u32, pub u32);
 
 impl CdfColor {
-    pub fn new(affinity: u32, tag: u32, collider_index: u32) -> Self {
-        Self((affinity << collider_index) | (tag << (collider_index + 16)))
-    }
-
     pub fn affinities(&self) -> u32 {
         self.0 & 0xFFFF
     }
@@ -48,5 +44,17 @@ impl CdfColor {
         // check whether all tags match for all shared affinities
         let shared_affinities = self.affinities() & other.affinities();
         shared_affinities & self.tags() == shared_affinities & other.tags()
+    }
+
+    pub fn check_and_correct_penetration(&mut self, previous_color: CdfColor) -> bool {
+        let shared_affinities = self.affinities() & previous_color.affinities();
+        let difference =
+            (shared_affinities & self.tags()) ^ (shared_affinities & previous_color.tags());
+
+        // correct the tags that penetrate a collider
+        self.0 = ((self.tags() ^ difference) << 16) | self.affinities();
+        self.1 = difference;
+
+        difference != 0
     }
 }
