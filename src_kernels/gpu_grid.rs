@@ -470,7 +470,7 @@ pub struct GpuGridNode {
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
-    pub cdf_data: NodeCdf,
+    pub cdf: NodeCdf,
 }
 
 impl Default for GpuGridNode {
@@ -483,7 +483,7 @@ impl Default for GpuGridNode {
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
-            cdf_data: NodeCdf::default(),
+            cdf: NodeCdf::default(),
         }
     }
 }

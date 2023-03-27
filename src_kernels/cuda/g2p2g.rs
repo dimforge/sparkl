@@ -5,12 +5,14 @@ use crate::{
     BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
     NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
 };
+use core::iter::{Map, Zip};
+use core::slice::Iter;
 use cuda_std::thread;
 use cuda_std::GpuFloat;
 use cuda_std::*;
 use na::distance;
 use na::{matrix, vector, Matrix3, Matrix4, Vector3, Vector4};
-use sparkl_core::math::{Kernel, Matrix, Real, Vector};
+use sparkl_core::math::{Kernel, Matrix, Real, Vector, DIM};
 use sparkl_core::prelude::{
     CdfColor, DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
     ParticleVelocity, ParticleVolume,
@@ -22,6 +24,72 @@ const NUM_SHARED_CELLS: usize = (4 * 4) * (2 * 2);
 const NUM_SHARED_CELLS: usize = (4 * 4 * 4) * (2 * 2 * 2);
 const FREE: u32 = u32::MAX;
 
+struct SharedKernel {
+    shared_nodes: *mut GridGatherData,
+    weights: [[Real; 3]; DIM],
+    ref_elt_pos_minus_particle_pos: Vector<Real>,
+    packed_cell_index_in_block: u32,
+    midcell_mass: Real,
+}
+
+impl SharedKernel {
+    unsafe fn new(
+        particle_pos: &ParticlePosition,
+        shared_nodes: *mut GridGatherData,
+        cell_width: f32,
+    ) -> Self {
+        let ref_elt_pos_minus_particle_pos = particle_pos.dir_to_associated_grid_node(cell_width);
+        let weights = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
+
+        let assoc_cell_index_in_block =
+            particle_pos.associated_cell_index_in_block_off_by_two(cell_width);
+        #[cfg(feature = "dim2")]
+        let packed_cell_index_in_block =
+            (assoc_cell_index_in_block.x + 1) + (assoc_cell_index_in_block.y + 1) * 8;
+        #[cfg(feature = "dim3")]
+        let packed_cell_index_in_block = (assoc_cell_index_in_block.x + 1)
+            + (assoc_cell_index_in_block.y + 1) * 8
+            + (assoc_cell_index_in_block.z + 1) * 8 * 8;
+
+        let midcell_mass = {
+            let midcell = &*shared_nodes
+                .add(packed_cell_index_in_block as usize + NBH_SHIFTS_SHARED.last().unwrap());
+            midcell.prev_mass
+        };
+
+        Self {
+            shared_nodes,
+            weights,
+            ref_elt_pos_minus_particle_pos,
+            packed_cell_index_in_block,
+            midcell_mass,
+        }
+    }
+
+    unsafe fn iterate_kernel(
+        &self,
+        cell_width: Real,
+    ) -> impl Iterator<Item = (&mut GridGatherData, f32, Vector<Real>)> {
+        NBH_SHIFTS
+            .iter()
+            .zip(NBH_SHIFTS_SHARED.iter())
+            .map(move |(shift, packed_shift)| {
+                let dpt = self.ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
+                #[cfg(feature = "dim2")]
+                let weight = self.weights[0][shift.x] * self.weights[1][shift.y];
+                #[cfg(feature = "dim3")]
+                let weight =
+                    self.weights[0][shift.x] * self.weights[1][shift.y] * self.weights[2][shift.z];
+
+                let cell = &mut *self
+                    .shared_nodes
+                    .add(self.packed_cell_index_in_block as usize + packed_shift);
+
+                (cell, weight, dpt)
+            })
+    }
+}
+
 struct GridGatherData {
     prev_mass: Real,
     mass: Real,
@@ -32,7 +100,7 @@ struct GridGatherData {
     psi_velocity: Real,
     projection_scaled_dir: Vector<Real>,
     projection_status: GpuGridProjectionStatus, // Todo: do we still need this?
-    cdf_data: NodeCdf,
+    cdf: NodeCdf,
     // NOTE: right now we are using a manually implemented lock, based on
     // integer atomics exchange, to avoid float atomics on shared memory
     // which are super slow.
@@ -80,7 +148,7 @@ impl Default for InterpolatedParticleData {
 }
 
 impl InterpolatedParticleData {
-    pub fn accumulate_color(&mut self, node_cdf: NodeCdf, weight: Real) {
+    pub fn interpolate_color(&mut self, node_cdf: NodeCdf, weight: Real) {
         // or together all affinities
         self.color.0 |= node_cdf.color.affinities();
 
@@ -101,7 +169,7 @@ impl InterpolatedParticleData {
         }
     }
 
-    pub fn accumulate_distance_and_normal(
+    pub fn interpolate_distance_and_normal(
         &mut self,
         node_cdf: NodeCdf,
         weight: Real,
@@ -324,49 +392,67 @@ unsafe fn particle_g2p2g(
     _damage_model: DamageModel,
     particle_updater: impl ParticleUpdater,
 ) {
-    let tid = thread::thread_idx_x();
-    let inv_d = Kernel::inv_d(cell_width);
+    let (mut interpolated_data, artificial_pressure_force) = g2p(
+        particle_status,
+        particle_pos,
+        shared_nodes,
+        cell_width,
+        &particle_updater,
+    );
 
-    let ref_elt_pos_minus_particle_pos = particle_pos.dir_to_associated_grid_node(cell_width);
+    if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
+        dt,
+        cell_width,
+        colliders,
+        particle_id,
+        particle_status,
+        particle_pos,
+        particle_vel,
+        particle_volume,
+        particle_phase,
+        particle_cdf,
+        &mut interpolated_data,
+    ) {
+        p2g(
+            dt,
+            particle_status,
+            particle_pos,
+            particle_vel,
+            particle_volume,
+            particle_phase,
+            particle_cdf,
+            shared_nodes,
+            cell_width,
+            &interpolated_data,
+            artificial_pressure_force,
+            stress,
+            force,
+        )
+    }
+}
+
+unsafe fn g2p(
+    particle_status: &mut ParticleStatus,
+    particle_pos: &mut ParticlePosition,
+    shared_nodes: *mut GridGatherData,
+    cell_width: Real,
+    particle_updater: &impl ParticleUpdater,
+) -> (InterpolatedParticleData, Vector<Real>) {
+    let inv_d = Kernel::inv_d(cell_width);
+    let shared_kernel = SharedKernel::new(particle_pos, shared_nodes, cell_width);
 
     // APIC grid-to-particle transfer.
     let mut interpolated_data = InterpolatedParticleData::default();
 
-    let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
-
-    let assoc_cell_before_integration = particle_pos.point.map(|e| (e / cell_width).round());
-    let assoc_cell_index_in_block =
-        particle_pos.associated_cell_index_in_block_off_by_two(cell_width);
-    #[cfg(feature = "dim2")]
-    let packed_cell_index_in_block =
-        (assoc_cell_index_in_block.x + 1) + (assoc_cell_index_in_block.y + 1) * 8;
-    #[cfg(feature = "dim3")]
-    let packed_cell_index_in_block = (assoc_cell_index_in_block.x + 1)
-        + (assoc_cell_index_in_block.y + 1) * 8
-        + (assoc_cell_index_in_block.z + 1) * 8 * 8;
-
-    let midcell_mass = {
-        let midcell = &*shared_nodes
-            .add(packed_cell_index_in_block as usize + NBH_SHIFTS_SHARED.last().unwrap());
-        midcell.prev_mass
-    };
-
     let artificial_pressure_stiffness = particle_updater.artificial_pressure_stiffness();
     let mut artificial_pressure_force = Vector::zeros();
 
-    for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
-        let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
-        #[cfg(feature = "dim2")]
-        let weight = w[0][shift.x] * w[1][shift.y];
-        #[cfg(feature = "dim3")]
-        let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
-
-        let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
         interpolated_data.velocity += weight * cell.velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
         interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
-        interpolated_data.accumulate_color(cell.cdf_data, weight);
+        interpolated_data.interpolate_color(cell.cdf, weight);
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
@@ -374,29 +460,26 @@ unsafe fn particle_g2p2g(
             && !particle_status.is_static
             && cell.projection_status.is_outside()
         {
-            artificial_pressure_force +=
-                weight * (midcell_mass - cell.prev_mass) * dpt * artificial_pressure_stiffness;
+            artificial_pressure_force += weight
+                * (shared_kernel.midcell_mass - cell.prev_mass)
+                * dpt
+                * artificial_pressure_stiffness;
         }
     }
 
     interpolated_data.compute_tags();
 
-    for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
-        let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
-        #[cfg(feature = "dim2")]
-        let weight = w[0][shift.x] * w[1][shift.y];
-        #[cfg(feature = "dim3")]
-        let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
-
-        let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
-        interpolated_data.accumulate_distance_and_normal(cell.cdf_data, weight, dpt);
+    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        interpolated_data.interpolate_distance_and_normal(cell.cdf, weight, dpt);
     }
 
+    // Todo: do we still require this after the CDF update?
     {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
         let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
-        let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
-        let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+        let dpt = shared_kernel.ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
+        let cell =
+            &*shared_nodes.add(shared_kernel.packed_cell_index_in_block as usize + packed_shift);
 
         let proj_norm = cell.projection_scaled_dir.norm();
 
@@ -412,69 +495,52 @@ unsafe fn particle_g2p2g(
             }
         }
     }
+    (interpolated_data, artificial_pressure_force)
+}
 
-    if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
-        dt,
-        cell_width,
-        colliders,
-        particle_id,
-        particle_status,
-        particle_pos,
-        particle_vel,
-        particle_volume,
-        particle_phase,
-        particle_cdf,
-        &mut interpolated_data,
-    ) {
-        let inv_d = Kernel::inv_d(cell_width);
-        let ref_elt_pos_minus_particle_pos = particle_pos.dir_to_associated_grid_node(cell_width);
-        let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
+unsafe fn p2g(
+    dt: Real,
+    particle_status: &mut ParticleStatus,
+    particle_pos: &mut ParticlePosition,
+    particle_vel: &mut ParticleVelocity,
+    particle_volume: &mut ParticleVolume,
+    particle_phase: &mut ParticlePhase,
+    particle_cdf: &mut ParticleCdf,
+    shared_nodes: *mut GridGatherData,
+    cell_width: Real,
+    interpolated_data: &InterpolatedParticleData,
+    artificial_pressure_force: Vector<Real>,
+    stress: Matrix<Real>,
+    force: Vector<Real>,
+) {
+    let tid = thread::thread_idx_x();
+    let inv_d = Kernel::inv_d(cell_width);
+    let shared_kernel = SharedKernel::new(particle_pos, shared_nodes, cell_width);
 
-        let affine = particle_volume.mass * interpolated_data.velocity_gradient
-            - (particle_volume.volume0 * inv_d * dt) * stress;
-        let momentum =
-            particle_volume.mass * particle_vel.vector + (force + artificial_pressure_force) * dt;
+    let affine = particle_volume.mass * interpolated_data.velocity_gradient
+        - (particle_volume.volume0 * inv_d * dt) * stress;
+    let momentum =
+        particle_volume.mass * particle_vel.vector + (force + artificial_pressure_force) * dt;
+    let psi_mass = if particle_phase.phase > 0.0 && !particle_status.failed {
+        particle_volume.mass
+    } else {
+        0.0
+    };
+    let psi_pos_momentum = psi_mass * particle_phase.psi_pos;
 
-        let psi_mass = if particle_phase.phase > 0.0 && !particle_status.failed {
-            particle_volume.mass
-        } else {
-            0.0
-        };
+    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        let added_mass = weight * particle_volume.mass;
+        let added_momentum = weight * (affine * dpt + momentum);
+        let added_psi_momentum = weight * psi_pos_momentum;
+        let added_psi_mass = weight * psi_mass;
 
-        let psi_pos_momentum = psi_mass * particle_phase.psi_pos;
+        // NOTE: float atomics on shared memory are super slow because they are not
+        // hardware accelerated yet. So we implement a manual lock instead, which seems
+        // much faster in practice (because atomic exchange on integers are hardware-accelerated
+        // on shared memory).
 
-        let assoc_cell_after_integration = particle_pos.point.map(|e| (e / cell_width).round());
-        let particle_cell_movement =
-            (assoc_cell_after_integration - assoc_cell_before_integration).map(|e| e as i64);
-
-        #[cfg(feature = "dim2")]
-        let packed_cell_index_in_block = (packed_cell_index_in_block as i64
-            + (particle_cell_movement.x)
-            + (particle_cell_movement.y) * 8) as u32;
-        #[cfg(feature = "dim3")]
-        let packed_cell_index_in_block = (packed_cell_index_in_block as i64
-            + (particle_cell_movement.x)
-            + (particle_cell_movement.y) * 8
-            + (particle_cell_movement.z) * 8 * 8) as u32;
-
-        for (shift, packed_shift) in NBH_SHIFTS.iter().zip(NBH_SHIFTS_SHARED.iter()) {
-            let dpt = ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
-            #[cfg(feature = "dim2")]
-            let weight = w[0][shift.x] * w[1][shift.y];
-            #[cfg(feature = "dim3")]
-            let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
-
-            let added_mass = weight * particle_volume.mass;
-            let added_momentum = weight * (affine * dpt + momentum);
-            let added_psi_momentum = weight * psi_pos_momentum;
-            let added_psi_mass = weight * psi_mass;
-
-            // NOTE: float atomics on shared memory are super slow because they are not
-            // hardware accelerated yet. So we implement a manual lock instead, which seems
-            // much faster in practice (because atomic exchange on integers are hardware-accelerated
-            // on shared memory).
-            let cell = &mut *shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
-
+        // only update compatible particles
+        if cell.cdf.is_compatible(particle_cdf) {
             loop {
                 let old = cell.lock.shared_atomic_exch_acq(tid);
                 if old == FREE {
@@ -486,16 +552,16 @@ unsafe fn particle_g2p2g(
                     break;
                 }
             }
-
-            /*
-               // TODO: shared float atomics are much slower than global float atomics.
-               cell.mass.shared_red_add(weight * particle.mass);
-               cell.momentum
-                   .shared_red_add(weight * (affine * dpt + momentum));
-               cell.psi_momentum.shared_red_add(weight * psi_pos_momentum);
-               cell.psi_mass.shared_red_add(weight * psi_mass);
-            */
         }
+
+        /*
+           // TODO: shared float atomics are much slower than global float atomics.
+           cell.mass.shared_red_add(weight * particle.mass);
+           cell.momentum
+               .shared_red_add(weight * (affine * dpt + momentum));
+           cell.psi_momentum.shared_red_add(weight * psi_pos_momentum);
+           cell.psi_mass.shared_red_add(weight * psi_mass);
+        */
     }
 }
 
@@ -573,14 +639,14 @@ unsafe fn transfer_global_blocks_to_shared_memory(
                 shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
                 shared_node.projection_status = global_node.projection_status;
                 shared_node.prev_mass = global_node.prev_mass;
-                shared_node.cdf_data = global_node.cdf_data;
+                shared_node.cdf = global_node.cdf;
             } else {
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
                 shared_node.projection_scaled_dir = na::zero();
                 shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
                 shared_node.prev_mass = 0.0;
-                shared_node.cdf_data = NodeCdf::default();
+                shared_node.cdf = NodeCdf::default();
             }
 
             shared_node.psi_momentum = 0.0;
@@ -619,7 +685,7 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             shared_node.prev_mass = 0.0;
             shared_node.projection_scaled_dir = na::zero();
             shared_node.projection_status = GpuGridProjectionStatus::NotComputed;
-            shared_node.cdf_data = NodeCdf::default();
+            shared_node.cdf = NodeCdf::default();
             shared_node.lock = FREE;
         }
     }

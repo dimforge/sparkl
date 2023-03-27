@@ -92,6 +92,8 @@ pub fn generate_rigid_particles(
     collider_index: u32,
     cell_width: Real,
 ) {
+    let cell_width = cell_width / 2.0;
+
     for (triangle_index, triangle) in indices[index_range.clone()].chunks(3).enumerate() {
         let triangle = Triangle {
             a: vertices[triangle[0] as usize],

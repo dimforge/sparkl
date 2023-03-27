@@ -1,4 +1,4 @@
-use crate::math::Real;
+use crate::math::{Real, Vector};
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -22,6 +22,36 @@ pub enum BoundaryHandling {
     Friction,
     FrictionZUp, // A bit of a hack until we have a more generic solution
     None,
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(C)]
+pub enum BoundaryCondition {
+    Stick,
+    Slip,
+    Friction(Real),
+}
+
+impl BoundaryCondition {
+    pub fn project(&self, velocity: Vector<Real>, normal: Vector<Real>) -> Vector<Real> {
+        let normal_velocity = velocity.dot(&normal);
+        let tangential_velocity = velocity - normal_velocity * normal;
+
+        match self {
+            Self::Stick => na::zero(),
+            Self::Slip => tangential_velocity,
+            Self::Friction(coefficient) => {
+                if normal_velocity > 0.0 {
+                    velocity
+                } else {
+                    (tangential_velocity.norm() + coefficient * normal_velocity).max(0.0)
+                        * tangential_velocity.normalize()
+                }
+            }
+        }
+    }
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

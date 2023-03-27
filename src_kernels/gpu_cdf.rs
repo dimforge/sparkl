@@ -15,6 +15,7 @@ pub struct NodeCdf {
     pub unsigned_distance: Real,
     // The affinity and tag (inside/ outside) information stored for up to 16 colliders.
     pub color: CdfColor,
+    pub closest_collider_index: u32,
     lock: u32,
 }
 
@@ -23,6 +24,7 @@ impl Default for NodeCdf {
         Self {
             unsigned_distance: f32::MAX,
             color: Default::default(),
+            closest_collider_index: u32::MAX,
             lock: FREE,
         }
     }
@@ -41,6 +43,7 @@ impl NodeCdf {
             if unsigned_distance < self.unsigned_distance {
                 self.color.update_tag(collider_index, signed_distance);
                 self.unsigned_distance = unsigned_distance;
+                self.closest_collider_index = collider_index;
             }
 
             self.lock.global_atomic_exch_rel(FREE);

@@ -213,7 +213,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         if true {
             if penetration {
                 // Todo: figure out why this does nothing
-                let penalty_stiffness = 0.01;
+                let penalty_stiffness = 0.005;
                 penalty_force = -penalty_stiffness * particle_cdf.distance * particle_cdf.normal;
             }
         }

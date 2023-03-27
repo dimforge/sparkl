@@ -884,19 +884,19 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                 let pos_z = node_position.z;
                                 let pos = [node_position.x as f32, node_position.y as f32, pos_z];
 
-                                if node.cdf_data.color.affinities() > 0 {
+                                if node.cdf.color.affinities() > 0 {
                                     let mut color = [0.0; 4];
 
                                     if show_color {
                                         for i in 0..3 {
-                                            let sign = node.cdf_data.color.sign(i);
+                                            let sign = node.cdf.color.sign(i);
                                             color[i as usize] = sign.abs() * (2.0 + sign) / 3.0;
                                         }
                                     }
 
                                     if show_distance {
-                                        let sign = node.cdf_data.color.sign(0);
-                                        let unsigned_distance = node.cdf_data.unsigned_distance;
+                                        let sign = node.cdf.color.sign(0);
+                                        let unsigned_distance = node.cdf.unsigned_distance;
                                         let relative_distance =
                                             unsigned_distance / (cell_width * 1.5);
 

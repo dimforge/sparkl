@@ -38,7 +38,7 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: NewGpuColliderSet
             let projected_point = node_position - signed_distance * normal;
 
             if inside_triangle(projected_point, triangle) {
-                node.cdf_data.update(signed_distance, collider_index);
+                node.cdf.update(signed_distance, collider_index);
             }
         }
     }
