@@ -182,8 +182,8 @@ impl ParticleCdf {
         if penetration {
             self.color.0 = ((self.color.tags() ^ difference) << 16) | self.color.affinities();
             self.color.1 = difference;
-            self.distance = -self.distance;
-            self.normal = -self.normal;
+            // self.distance = -self.distance;
+            // self.normal = -self.normal;
         }
 
         penetration

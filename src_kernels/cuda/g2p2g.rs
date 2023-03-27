@@ -161,14 +161,6 @@ impl InterpolatedParticleData {
         }
     }
 
-    pub fn compute_tags(&mut self) {
-        // turn the weighted tags into the proper tags of the particle
-        for collider_index in 0..16 {
-            let weighted_tag = self.weighted_tags[collider_index];
-            self.color.update_tag(collider_index as u32, weighted_tag);
-        }
-    }
-
     pub fn interpolate_distance_and_normal(
         &mut self,
         node_cdf: NodeCdf,
@@ -179,18 +171,7 @@ impl InterpolatedParticleData {
             return;
         }
 
-        // compare tags of closest collider
-        let particle_tag = self.color.tag(node_cdf.closest_collider_index);
-        let node_tag = node_cdf.color.tag(node_cdf.closest_collider_index);
-        let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
-
-        // Todo: decide how to select the sign
-        // use the sign difference between particle and node
-        // use sign of the node
-        // let sign = node_cdf.color.sign(0);
-        // keep unsigned for now
-        // let sign = 1.0;
-
+        let sign = node_cdf.color.sign(node_cdf.closest_collider_index);
         let distance = sign * node_cdf.unsigned_distance;
         let weighted_distance = weight * distance;
         let outer_product = difference * difference.transpose();
@@ -229,6 +210,7 @@ impl InterpolatedParticleData {
     }
 
     pub fn compute_particle_cdf(&self) -> ParticleCdf {
+        // calculate the final distance and the normal of the particle
         if let Some(inverse_matrix) = self.weight_matrix.try_inverse() {
             // discard the distance, if the sample weight is too insignificant
             if self.weight_matrix.determinant().abs() > 1.0e-8 {
@@ -237,9 +219,16 @@ impl InterpolatedParticleData {
                 let distance = result.x;
                 let gradient = result.remove_row(0);
                 let normal = gradient.normalize();
+                let mut color = self.color;
+
+                // turn the weighted tags into the proper tags of the particle
+                for collider_index in 0..16 {
+                    let weighted_tag = self.weighted_tags[collider_index];
+                    color.update_tag(collider_index as u32, weighted_tag);
+                }
 
                 return ParticleCdf {
-                    color: self.color,
+                    color,
                     distance,
                     normal,
                 };
@@ -391,6 +380,7 @@ unsafe fn particle_g2p2g(
     particle_updater: impl ParticleUpdater,
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
+        dt,
         colliders,
         particle_status,
         particle_pos,
@@ -432,6 +422,7 @@ unsafe fn particle_g2p2g(
 }
 
 unsafe fn g2p(
+    dt: Real,
     colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
@@ -450,13 +441,8 @@ unsafe fn g2p(
     let mut artificial_pressure_force = Vector::zeros();
 
     // update particle cdf
-    for (cell, weight, _dpt) in shared_kernel.iterate_kernel(cell_width) {
-        interpolated_data.interpolate_color(cell.cdf, weight);
-    }
-
-    interpolated_data.compute_tags();
-
     for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        interpolated_data.interpolate_color(cell.cdf, weight);
         interpolated_data.interpolate_distance_and_normal(cell.cdf, weight, dpt);
     }
 
@@ -475,7 +461,11 @@ unsafe fn g2p(
             let projected_velocity =
                 collider.project_particle_velocity(cell.velocity, particle_cdf.normal);
 
-            projected_velocity
+            // Todo: do we actually need this? what is the difference to the penatly force? how to choose the penalty (c)
+            let penalty = 1.0;
+            let penalty_velocity = dt * penalty * particle_cdf.normal;
+
+            projected_velocity + penalty_velocity
         };
 
         interpolated_data.velocity += weight * velocity;

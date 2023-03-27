@@ -37,12 +37,12 @@ pub fn init_world(testbed: &mut Testbed) {
         .sensor(true)
         .build(),
     );
-    // colliders.insert(
-    //     ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-    //         .translation(vector![10.0, 8.0, 5.0])
-    //         .sensor(true)
-    //         .build(),
-    // );
+    colliders.insert(
+        ColliderBuilder::cuboid(10.0, 0.11, 5.0)
+            .translation(vector![0.0, 1.5, 5.0])
+            .sensor(true)
+            .build(),
+    );
     // colliders.insert(
     //     ColliderBuilder::capsule_y(2.0, 1.0)
     //         .translation(vector![10.0, 4.0, 5.0])

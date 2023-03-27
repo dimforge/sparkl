@@ -647,7 +647,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
     ) {
         self.step_id += 1;
 
-        let show_color = false;
+        let show_color = true;
         let show_distance = true;
         let show_normal = true;
 
@@ -743,14 +743,6 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     ParticlesRenderingMode::Cdf => {
                         let mut color = [0.0; 3];
 
-                        if particle.color.1 != 0 {
-                            instance_data.push(ParticleInstanceData {
-                                position: pos.into(),
-                                scale: 0.05,
-                                color: [0.0, 1.0, 1.0, 1.0],
-                            });
-                        }
-
                         if show_color {
                             for i in 0..3 {
                                 let sign = particle.color.sign(i);
@@ -779,12 +771,17 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     } else {
                         1.0
                     };
+                    let penetrated = if particle.color.1 != 0 {
+                        intensity
+                    } else {
+                        0.0
+                    };
 
                     if normal == zero {
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
                             scale: 0.02,
-                            color: [0.0, 0.0, 0.0, 1.0],
+                            color: [0.0, penetrated, 0.0, 1.0],
                         });
                     } else {
                         let pos1 = particle.position + normal * 0.005;
@@ -799,7 +796,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
                             scale: 0.02,
-                            color: [intensity, 0.0, 0.0, 1.0],
+                            color: [intensity, penetrated, 0.0, 1.0],
                         });
 
                         #[cfg(feature = "dim2")]
@@ -811,7 +808,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
                             scale: 0.02,
-                            color: [0.0, 0.0, intensity, 1.0],
+                            color: [0.0, penetrated, intensity, 1.0],
                         });
                     }
                 } else {
