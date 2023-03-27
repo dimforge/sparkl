@@ -7,7 +7,11 @@ use parry::{
     shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation, Triangle},
     utils::CudaArrayPointer1,
 };
-use sparkl_core::{dynamics::solver::BoundaryHandling, rigid_particles::RigidParticle};
+use sparkl_core::prelude::Vector;
+use sparkl_core::{
+    dynamics::solver::{BoundaryCondition, BoundaryHandling},
+    rigid_particles::RigidParticle,
+};
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
@@ -212,6 +216,23 @@ pub struct GpuCollider {
     pub friction: Real,
     pub penalty_stiffness: Real,
     pub grid_boundary_handling: BoundaryHandling,
+    pub boundary_condition: BoundaryCondition,
+}
+
+impl GpuCollider {
+    pub fn project_particle_velocity(
+        &self,
+        // _particle_position: Point<Real>,
+        particle_velocity: Vector<Real>,
+        normal: Vector<Real>,
+    ) -> Vector<Real> {
+        let collider_velocity: Vector<Real> = na::zero();
+
+        collider_velocity
+            + self
+                .boundary_condition
+                .project(particle_velocity - collider_velocity, normal)
+    }
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]

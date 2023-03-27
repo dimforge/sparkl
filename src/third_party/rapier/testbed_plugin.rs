@@ -647,12 +647,12 @@ impl TestbedPlugin for MpmTestbedPlugin {
     ) {
         self.step_id += 1;
 
-        let show_color = true;
-        let show_distance = false;
-        let show_normal = false;
+        let show_color = false;
+        let show_distance = true;
+        let show_normal = true;
 
         let show_particles = true;
-        let show_nodes = true;
+        let show_nodes = false;
         let show_rigid_particles = false;
 
         let grid_data = &self.host_sparse_grid_data;

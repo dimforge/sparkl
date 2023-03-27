@@ -45,16 +45,4 @@ impl CdfColor {
         let shared_affinities = self.affinities() & other.affinities();
         shared_affinities & self.tags() == shared_affinities & other.tags()
     }
-
-    pub fn check_and_correct_penetration(&mut self, previous_color: CdfColor) -> bool {
-        let shared_affinities = self.affinities() & previous_color.affinities();
-        let difference =
-            (shared_affinities & self.tags()) ^ (shared_affinities & previous_color.tags());
-
-        // correct the tags that penetrate a collider
-        self.0 = ((self.tags() ^ difference) << 16) | self.affinities();
-        self.1 = difference;
-
-        difference != 0
-    }
 }

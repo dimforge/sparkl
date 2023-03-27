@@ -170,6 +170,26 @@ impl Default for ParticleCdf {
     }
 }
 
+impl ParticleCdf {
+    pub fn check_and_correct_penetration(&mut self, previous_cdf: &ParticleCdf) -> bool {
+        let shared_affinities = self.color.affinities() & previous_cdf.color.affinities();
+        let difference = (shared_affinities & self.color.tags())
+            ^ (shared_affinities & previous_cdf.color.tags());
+
+        let penetration = difference != 0;
+
+        // correct the penetration
+        if penetration {
+            self.color.0 = ((self.color.tags() ^ difference) << 16) | self.color.affinities();
+            self.color.1 = difference;
+            self.distance = -self.distance;
+            self.normal = -self.normal;
+        }
+
+        penetration
+    }
+}
+
 /*
  *=======================
  *                      *

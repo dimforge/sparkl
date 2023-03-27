@@ -199,18 +199,13 @@ impl ParticleUpdater for DefaultParticleUpdater {
             }
         }
 
-        let mut new_particle_cdf = interpolated_data.compute_particle_cdf();
-        let penetration = new_particle_cdf
-            .color
-            .check_and_correct_penetration(particle_cdf.color);
-        *particle_cdf = new_particle_cdf;
-
+        let penetration = false;
         /*
          * Particle projection.
          * TODO: refactor to its own function.
          */
         let mut penalty_force = Vector::zeros();
-        if true {
+        if false {
             if penetration {
                 // Todo: figure out why this does nothing
                 let penalty_stiffness = 0.005;

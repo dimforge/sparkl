@@ -175,21 +175,19 @@ impl InterpolatedParticleData {
         weight: Real,
         difference: Vector<Real>,
     ) {
-        // for now lets assume we only have a single collider
-        let affinity = node_cdf.color.affinity(0);
-
-        if affinity == 0 {
+        if node_cdf.color.affinities() == 0 {
             return;
         }
 
-        let particle_tag = self.color.tag(0);
-        let node_tag = node_cdf.color.tag(0);
+        // compare tags of closest collider
+        let particle_tag = self.color.tag(node_cdf.closest_collider_index);
+        let node_tag = node_cdf.color.tag(node_cdf.closest_collider_index);
+        let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
 
         // Todo: decide how to select the sign
         // use the sign difference between particle and node
-        // let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
         // use sign of the node
-        let sign = node_cdf.color.sign(0);
+        // let sign = node_cdf.color.sign(0);
         // keep unsigned for now
         // let sign = 1.0;
 
@@ -393,8 +391,10 @@ unsafe fn particle_g2p2g(
     particle_updater: impl ParticleUpdater,
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
+        colliders,
         particle_status,
         particle_pos,
+        particle_cdf,
         shared_nodes,
         cell_width,
         &particle_updater,
@@ -432,8 +432,10 @@ unsafe fn particle_g2p2g(
 }
 
 unsafe fn g2p(
+    colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
+    particle_cdf: &mut ParticleCdf,
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     particle_updater: &impl ParticleUpdater,
@@ -447,12 +449,39 @@ unsafe fn g2p(
     let artificial_pressure_stiffness = particle_updater.artificial_pressure_stiffness();
     let mut artificial_pressure_force = Vector::zeros();
 
-    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        interpolated_data.velocity += weight * cell.velocity;
-        interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
-        interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
-        interpolated_data.velocity_gradient_det += weight * cell.velocity.dot(&dpt) * inv_d;
+    // update particle cdf
+    for (cell, weight, _dpt) in shared_kernel.iterate_kernel(cell_width) {
         interpolated_data.interpolate_color(cell.cdf, weight);
+    }
+
+    interpolated_data.compute_tags();
+
+    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        interpolated_data.interpolate_distance_and_normal(cell.cdf, weight, dpt);
+    }
+
+    let mut new_particle_cdf = interpolated_data.compute_particle_cdf();
+    let penetration = new_particle_cdf.check_and_correct_penetration(particle_cdf);
+    *particle_cdf = new_particle_cdf;
+
+    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        let velocity = if cell.cdf.is_compatible(particle_cdf) {
+            cell.velocity
+        } else {
+            // the particle has collided and needs to be projected along the collider
+            let collider = colliders
+                .get(cell.cdf.closest_collider_index as usize)
+                .unwrap();
+            let projected_velocity =
+                collider.project_particle_velocity(cell.velocity, particle_cdf.normal);
+
+            projected_velocity
+        };
+
+        interpolated_data.velocity += weight * velocity;
+        interpolated_data.velocity_gradient += (weight * inv_d) * velocity * dpt.transpose();
+        interpolated_data.velocity_gradient_det += weight * velocity.dot(&dpt) * inv_d;
+        interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
@@ -465,12 +494,6 @@ unsafe fn g2p(
                 * dpt
                 * artificial_pressure_stiffness;
         }
-    }
-
-    interpolated_data.compute_tags();
-
-    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        interpolated_data.interpolate_distance_and_normal(cell.cdf, weight, dpt);
     }
 
     // Todo: do we still require this after the CDF update?

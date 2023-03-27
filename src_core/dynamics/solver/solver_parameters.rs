@@ -46,8 +46,8 @@ impl BoundaryCondition {
                 if normal_velocity > 0.0 {
                     velocity
                 } else {
-                    (tangential_velocity.norm() + coefficient * normal_velocity).max(0.0)
-                        * tangential_velocity.normalize()
+                    let tangent = tangential_velocity.try_normalize(0.0).unwrap_or(na::zero());
+                    (tangential_velocity.norm() + coefficient * normal_velocity).max(0.0) * tangent
                 }
             }
         }
