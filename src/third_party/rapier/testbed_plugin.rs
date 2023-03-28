@@ -6,6 +6,9 @@ use crate::geometry::SpGrid;
 use crate::math::{Real, Vector};
 use crate::pipelines::MpmPipeline;
 use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
+use crate::third_party::rapier::visualization::{
+    visualization_ui, ParticleMode, VisualizationMode,
+};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 use instant::Duration;
@@ -32,31 +35,6 @@ use {
         memory::{CopyDestination, LockedBuffer},
     },
 };
-
-/// How the fluids should be rendered by the testbed.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ParticlesRenderingMode {
-    /// Use a plain color.
-    StaticColor,
-    /// Use a red taint the closer to `max` the velocity is.
-    VelocityColor {
-        /// Fluids with a velocity smaller than this will not have any red taint.
-        min: f32,
-        /// Fluids with a velocity greater than this will be completely red.
-        max: f32,
-    },
-    DensityRatio {
-        max: f32,
-    },
-    Position {
-        mins: Vector<f32>,
-        maxs: Vector<f32>,
-    },
-    Blocks {
-        block_len: usize,
-    },
-    Cdf,
-}
 
 /// A user-defined callback executed at each frame.
 pub type UserCallback = Box<dyn FnMut(&mut Harness, &mut ParticleSet, f64)>;
@@ -93,7 +71,7 @@ impl CudaData {
 /// A plugin for rendering fluids with the Rapier testbed.
 pub struct MpmTestbedPlugin {
     pub render_boundary_particles: bool,
-    pub particles_rendering_mode: ParticlesRenderingMode,
+    pub visualization_mode: VisualizationMode,
     step_id: usize,
     pub callbacks: Vec<UserCallback>,
     step_time: f64,
@@ -262,10 +240,7 @@ impl MpmTestbedPlugin {
         Self {
             step_id: 0,
             render_boundary_particles: false,
-            particles_rendering_mode: ParticlesRenderingMode::VelocityColor {
-                min: 0.0,
-                max: 10.0,
-            },
+            visualization_mode: VisualizationMode::default(),
             step_time: 0.0,
             simulated_time: 0.0,
             real_time: 0.0,
@@ -647,21 +622,18 @@ impl TestbedPlugin for MpmTestbedPlugin {
     ) {
         self.step_id += 1;
 
-        let show_color = true;
-        let show_distance = true;
-        let show_normal = true;
+        let gfx = if let Some(gfx) = &mut self.particle_gfx {
+            gfx
+        } else {
+            return;
+        };
 
-        let show_particles = true;
-        let show_nodes = false;
-        let show_rigid_particles = false;
-
+        let mut instance_data = vec![];
+        let mode = &self.visualization_mode;
         let grid_data = &self.host_sparse_grid_data;
         let cell_width = self.sp_grid.cell_width();
 
-        // Update particles
-        if let Some(gfx) = &mut self.particle_gfx {
-            let mut instance_data = vec![];
-
+        if mode.show_particles {
             for (i, particle) in self.particles.particles.iter().enumerate() {
                 #[cfg(feature = "dim2")]
                 let pos_z = 0.0;
@@ -673,15 +645,15 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     pos_z,
                 ];
 
-                let color = match self.particles_rendering_mode {
-                    ParticlesRenderingMode::Blocks { block_len } => {
+                let color = match self.visualization_mode.particle_mode {
+                    ParticleMode::Blocks { block_len } => {
                         while self.blocks_color.len() <= self.particles.len() / block_len {
                             self.blocks_color.push((graphics.next_color() / 2.0).into());
                         }
 
                         self.blocks_color[i / block_len]
                     }
-                    ParticlesRenderingMode::Position { mins, maxs } => {
+                    ParticleMode::Position { mins, maxs } => {
                         let color = (particle.position - mins)
                             .coords
                             .component_div(&(maxs - mins))
@@ -690,7 +662,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         let color = color.push(0.0);
                         color.into()
                     }
-                    ParticlesRenderingMode::DensityRatio { max } => {
+                    ParticleMode::DensityRatio { max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
                         let red = Vector3::x();
                         let blue = Vector3::z();
@@ -703,7 +675,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             blue.lerp(&base_color.coords, ratio).into()
                         }
                     }
-                    ParticlesRenderingMode::VelocityColor { min, max } => {
+                    ParticleMode::VelocityColor { min, max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
                         let color = if particle.failed {
                             [1.0, 1.0, 0.0]
@@ -734,241 +706,277 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         };
                         color
                     }
-                    ParticlesRenderingMode::StaticColor => self
+                    ParticleMode::StaticColor => self
                         .model_colors
                         .get(particle.model)
                         .copied()
                         .unwrap()
                         .into(),
-                    ParticlesRenderingMode::Cdf => {
-                        let mut color = [0.0; 3];
+                    ParticleMode::Cdf {
+                        show_distance,
+                        show_normal,
+                        show_color,
+                        max_distance,
+                        ..
+                    } => {
+                        let mut color = if particle.color.affinities() == 0 {
+                            [0.0; 3]
+                        } else {
+                            [1.0; 3]
+                        };
 
                         if show_color {
+                            // Todo: blend multiple colors together, instead of the 3 base colors
                             for i in 0..3 {
-                                let sign = particle.color.sign(i);
-                                color[i as usize] = sign.abs() * (2.0 + sign) / 3.0;
+                                let affinity = particle.color.affinity(i);
+                                color[i as usize] = affinity as f32;
                             }
                         }
+
                         if show_distance {
-                            let sign = particle.color.sign(0);
                             let unsigned_distance = particle.distance.abs();
-                            let relative_distance = unsigned_distance / (cell_width * 1.5);
-                            color[0] = sign.abs() * na::clamp(1.0 - relative_distance, 0.0, 1.0);
-                            color[1] = if particle.distance > 0.0 { 1.0 } else { 0.0 };
+                            let relative_distance = unsigned_distance / (cell_width * max_distance);
+                            let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
+
+                            color = [
+                                color[0] * intensity,
+                                color[1] * intensity,
+                                color[2] * intensity,
+                            ]
+                            // color[1] = if particle.distance > 0.0 { 1.0 } else { 0.0 };}
                         }
 
                         color
                     }
                 };
 
-                if show_normal {
-                    let normal = particle.normal;
-                    let zero: Vector<Real> = na::zero();
+                let color = [color[0], color[1], color[2], 1.0];
 
-                    let intensity = if show_distance {
-                        let relative_distance = particle.distance.abs() / (cell_width * 1.5);
-                        na::clamp(1.0 - relative_distance, 0.0, 1.0)
-                    } else {
-                        1.0
-                    };
-                    let penetrated = if particle.color.1 != 0 {
-                        intensity
-                    } else {
-                        0.0
-                    };
-
-                    if normal == zero {
-                        instance_data.push(ParticleInstanceData {
-                            position: pos.into(),
-                            scale: 0.02,
-                            color: [0.0, penetrated, 0.0, 1.0],
-                        });
-                    } else {
-                        let pos1 = particle.position + normal * 0.005;
-                        let pos2 = particle.position - normal * 0.005;
-
-                        #[cfg(feature = "dim2")]
-                        let pos_z = 0.0;
-                        #[cfg(feature = "dim3")]
-                        let pos_z = pos1.z;
-                        let pos = [pos1.x as f32, pos1.y as f32, pos_z];
-
-                        instance_data.push(ParticleInstanceData {
-                            position: pos.into(),
-                            scale: 0.02,
-                            color: [intensity, penetrated, 0.0, 1.0],
-                        });
-
-                        #[cfg(feature = "dim2")]
-                        let pos_z = 0.0;
-                        #[cfg(feature = "dim3")]
-                        let pos_z = pos2.z;
-                        let pos = [pos2.x as f32, pos2.y as f32, pos_z];
-
-                        instance_data.push(ParticleInstanceData {
-                            position: pos.into(),
-                            scale: 0.02,
-                            color: [0.0, penetrated, intensity, 1.0],
-                        });
+                let scale = if mode.particle_volume {
+                    #[cfg(feature = "dim2")]
+                    {
+                        (particle.volume0 / std::f32::consts::PI).sqrt() / 2.0
+                    }
+                    #[cfg(feature = "dim3")]
+                    {
+                        (particle.volume0 * 3.0 / (4.0 * std::f32::consts::PI)).cbrt() / 2.0
                     }
                 } else {
-                    instance_data.push(ParticleInstanceData {
-                        position: pos.into(),
-                        #[cfg(feature = "dim2")]
-                        scale: (particle.volume0 / std::f32::consts::PI).sqrt() / 2.0,
-                        #[cfg(feature = "dim3")]
-                        scale: (particle.volume0 * 3.0 / (4.0 * std::f32::consts::PI)).cbrt() / 2.0,
-                        color: [color[0], color[1], color[2], 1.0],
-                    });
-                }
-            }
+                    mode.particle_scale
+                };
 
-            if show_rigid_particles {
-                if let Some(cuda_data) = self.cuda_data.get(0) {
-                    if let Some(colliders) = &cuda_data.colliders {
-                        for particle in &colliders.rigid_particles {
-                            let collider =
-                                colliders.gpu_colliders[particle.collider_index as usize];
+                match mode.particle_mode {
+                    ParticleMode::Cdf {
+                        show_distance,
+                        show_normal: true,
+                        show_color,
+                        max_distance,
+                        normal_difference,
+                    } => {
+                        let normal = particle.normal;
 
-                            let particle_position = collider.position * particle.position;
+                        if normal == Vector::<Real>::zeros() {
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
+                                color,
+                            });
+                        } else {
+                            let pos1 = particle.position + normal * 0.005;
+                            let pos2 = particle.position - normal * 0.005;
 
                             #[cfg(feature = "dim2")]
                             let pos_z = 0.0;
                             #[cfg(feature = "dim3")]
-                            let pos_z = particle_position.z;
-                            let pos = [
-                                particle_position.x as f32,
-                                particle_position.y as f32,
-                                pos_z,
-                            ];
-
-                            let color_index = particle.color_index as usize;
-                            let count = 10;
-
-                            let color =
-                                [(color_index % count) as f32 / count as f32, 0.0, 0.0, 1.0];
+                            let pos_z = pos1.z;
+                            let pos = [pos1.x as f32, pos1.y as f32, pos_z];
 
                             instance_data.push(ParticleInstanceData {
                                 position: pos.into(),
-                                scale: 0.02,
+                                scale,
+                                color,
+                            });
+
+                            let intensity = 1.0 - normal_difference;
+                            let color = [
+                                color[0] * intensity,
+                                color[1] * intensity,
+                                color[2] * intensity,
+                                1.0,
+                            ];
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = pos2.z;
+                            let pos = [pos2.x as f32, pos2.y as f32, pos_z];
+
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
+                                color,
+                            });
+                        }
+                    }
+                    _ => {
+                        instance_data.push(ParticleInstanceData {
+                            position: pos.into(),
+                            scale,
+                            color,
+                        });
+                    }
+                };
+            }
+        }
+
+        if mode.show_rigid_particles {
+            if let Some(cuda_data) = self.cuda_data.get(0) {
+                if let Some(colliders) = &cuda_data.colliders {
+                    for particle in &colliders.rigid_particles {
+                        let collider = colliders.gpu_colliders[particle.collider_index as usize];
+
+                        let particle_position = collider.position * particle.position;
+
+                        #[cfg(feature = "dim2")]
+                        let pos_z = 0.0;
+                        #[cfg(feature = "dim3")]
+                        let pos_z = particle_position.z;
+                        let pos = [
+                            particle_position.x as f32,
+                            particle_position.y as f32,
+                            pos_z,
+                        ];
+
+                        let mut color = [0.0, 0.0, 0.0, 1.0];
+                        let color_index = particle.color_index as usize;
+                        let intensity = (color_index % mode.rigid_particle_len) as f32
+                            / mode.rigid_particle_len as f32;
+                        color[particle.collider_index as usize] = intensity;
+
+                        let scale = mode.rigid_particle_scale;
+
+                        instance_data.push(ParticleInstanceData {
+                            position: pos.into(),
+                            scale,
+                            color,
+                        });
+                    }
+                }
+            }
+        }
+
+        if mode.show_grid {
+            for block_header in grid_data.active_blocks.iter() {
+                let block_virtual = block_header.virtual_id;
+
+                if let Some(block_header) = grid_data.grid_hash_map.get(block_virtual) {
+                    let block_physical = block_header.to_physical();
+
+                    for i in 0..NUM_CELL_PER_BLOCK as usize {
+                        let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
+                        let node_physical = block_physical.node_id_unchecked(shift);
+
+                        if let Some(node) = grid_data.node_buffer.get(node_physical.0 as usize) {
+                            let node_coord =
+                                block_virtual.unpack_pos_on_signed_grid() * 4 + shift.cast::<i64>();
+                            let node_position = cell_width * node_coord.cast::<Real>();
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = node_position.z;
+                            let pos = [node_position.x as f32, node_position.y as f32, pos_z];
+
+                            let scale = mode.grid_scale;
+                            let mut color = if node.cdf.color.affinities() == 0 {
+                                [0.0; 4]
+                            } else {
+                                [1.0; 4]
+                            };
+
+                            if node.cdf.color.affinities() > 0 {
+                                if mode.grid_color {
+                                    for i in 0..3 {
+                                        let affinity = node.cdf.color.affinity(i);
+                                        color[i as usize] = affinity as f32;
+                                    }
+                                }
+
+                                if mode.grid_distance {
+                                    let unsigned_distance = node.cdf.unsigned_distance;
+                                    let relative_distance =
+                                        unsigned_distance / (cell_width * mode.grid_max_distance);
+                                    let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
+
+                                    color = [
+                                        color[0] * intensity,
+                                        color[1] * intensity,
+                                        color[2] * intensity,
+                                        1.0,
+                                    ]
+                                }
+                            }
+
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
                                 color,
                             });
                         }
                     }
                 }
             }
+        }
 
-            if show_nodes {
-                for block_header in grid_data.active_blocks.iter() {
-                    let block_virtual = block_header.virtual_id;
-
-                    if let Some(block_header) = grid_data.grid_hash_map.get(block_virtual) {
-                        let block_physical = block_header.to_physical();
-
-                        for i in 0..NUM_CELL_PER_BLOCK as usize {
-                            let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
-                            let node_physical = block_physical.node_id_unchecked(shift);
-
-                            if let Some(node) = grid_data.node_buffer.get(node_physical.0 as usize)
-                            {
-                                let node_coord = block_virtual.unpack_pos_on_signed_grid() * 4
-                                    + shift.cast::<i64>();
-                                let node_position = cell_width * node_coord.cast::<Real>();
-
-                                #[cfg(feature = "dim2")]
-                                let pos_z = 0.0;
-                                #[cfg(feature = "dim3")]
-                                let pos_z = node_position.z;
-                                let pos = [node_position.x as f32, node_position.y as f32, pos_z];
-
-                                if node.cdf.color.affinities() > 0 {
-                                    let mut color = [0.0; 4];
-
-                                    if show_color {
-                                        for i in 0..3 {
-                                            let sign = node.cdf.color.sign(i);
-                                            color[i as usize] = sign.abs() * (2.0 + sign) / 3.0;
-                                        }
-                                    }
-
-                                    if show_distance {
-                                        let sign = node.cdf.color.sign(0);
-                                        let unsigned_distance = node.cdf.unsigned_distance;
-                                        let relative_distance =
-                                            unsigned_distance / (cell_width * 1.5);
-
-                                        color[1] = sign.abs()
-                                            * na::clamp(1.0 - relative_distance, 0.0, 1.0);
-                                    }
-
-                                    instance_data.push(ParticleInstanceData {
-                                        position: pos.into(),
-                                        scale: 0.02,
-                                        color,
-                                    });
-                                } else {
-                                    // instance_data.push(ParticleInstanceData {
-                                    //     position: pos.into(),
-                                    //     scale: 0.02,
-                                    //     color: [0.0, 0.0, 0.0, 1.0],
-                                    // });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            #[cfg(feature = "dim2")]
-            {
-                for (data, gfx) in instance_data.iter().zip(gfx.iter()) {
-                    commands
-                        .entity(gfx.entity)
-                        .insert(Sprite {
-                            color: Color::rgb(data.color[0], data.color[1], data.color[2]),
-                            ..Default::default()
-                        })
-                        .insert(
-                            Transform::from_xyz(data.position.x, data.position.y, data.position.z)
-                                .with_scale(Vec3::splat(data.scale * 2.0)),
-                        );
-                }
-
-                if instance_data.len() > gfx.len() {
-                    for data in &instance_data[gfx.len()..] {
-                        // We are missing some sprites.
-                        let entity = commands
-                            .spawn_bundle(SpriteBundle {
-                                sprite: Sprite {
-                                    color: Color::rgb(data.color[0], data.color[1], data.color[2]),
-                                    ..Default::default()
-                                },
-                                transform: Transform::from_xyz(
-                                    data.position.x,
-                                    data.position.y,
-                                    data.position.z,
-                                )
-                                .with_scale(Vec3::splat(data.scale * 2.0)),
-                                ..Default::default()
-                            })
-                            .id();
-                        gfx.push(ParticleGfx { entity });
-                    }
-                } else {
-                    // Remove spurious entities.
-                    for gfx in &gfx[instance_data.len()..] {
-                        commands.entity(gfx.entity).despawn();
-                    }
-
-                    gfx.truncate(instance_data.len());
-                }
-            }
-            #[cfg(feature = "dim3")]
-            {
+        #[cfg(feature = "dim2")]
+        {
+            for (data, gfx) in instance_data.iter().zip(gfx.iter()) {
                 commands
                     .entity(gfx.entity)
-                    .insert(ParticleInstanceMaterialData(instance_data));
+                    .insert(Sprite {
+                        color: Color::rgb(data.color[0], data.color[1], data.color[2]),
+                        ..Default::default()
+                    })
+                    .insert(
+                        Transform::from_xyz(data.position.x, data.position.y, data.position.z)
+                            .with_scale(Vec3::splat(data.scale * 2.0)),
+                    );
             }
+
+            if instance_data.len() > gfx.len() {
+                for data in &instance_data[gfx.len()..] {
+                    // We are missing some sprites.
+                    let entity = commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::rgb(data.color[0], data.color[1], data.color[2]),
+                                ..Default::default()
+                            },
+                            transform: Transform::from_xyz(
+                                data.position.x,
+                                data.position.y,
+                                data.position.z,
+                            )
+                            .with_scale(Vec3::splat(data.scale * 2.0)),
+                            ..Default::default()
+                        })
+                        .id();
+                    gfx.push(ParticleGfx { entity });
+                }
+            } else {
+                // Remove spurious entities.
+                for gfx in &gfx[instance_data.len()..] {
+                    commands.entity(gfx.entity).despawn();
+                }
+
+                gfx.truncate(instance_data.len());
+            }
+        }
+        #[cfg(feature = "dim3")]
+        {
+            commands
+                .entity(gfx.entity)
+                .insert(ParticleInstanceMaterialData(instance_data));
         }
     }
 
@@ -1072,6 +1080,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     });
                 }
             });
+
+            visualization_ui(&mut self.visualization_mode, ui_context)
         }
     }
 

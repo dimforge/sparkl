@@ -6,7 +6,7 @@ use rapier3d::prelude::{
 };
 use rapier_testbed3d::{Testbed, TestbedApp};
 use sparkl3d::prelude::*;
-use sparkl3d::third_party::rapier::{MpmTestbedPlugin, ParticlesRenderingMode};
+use sparkl3d::third_party::rapier::MpmTestbedPlugin;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -110,7 +110,6 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
-    plugin.particles_rendering_mode = ParticlesRenderingMode::Cdf;
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
