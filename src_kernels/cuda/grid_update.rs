@@ -164,7 +164,7 @@ fn update_single_cell(
 }
 
 fn update_cell(dt: Real, cell: &mut GpuGridNode, gravity: Vector<Real>) {
-    cell.momentum_velocity = ((cell.momentum_velocity + cell.mass * gravity * dt)
-        * sparkl_core::utils::inv_exact(cell.mass));
+    cell.momentum_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
+        * sparkl_core::utils::inv_exact(cell.mass);
     cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
 }

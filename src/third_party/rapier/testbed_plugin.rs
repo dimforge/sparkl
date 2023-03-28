@@ -714,7 +714,6 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         .into(),
                     ParticleMode::Cdf {
                         show_distance,
-                        show_normal,
                         show_color,
                         max_distance,
                         ..
@@ -767,11 +766,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
                 match mode.particle_mode {
                     ParticleMode::Cdf {
-                        show_distance,
                         show_normal: true,
-                        show_color,
-                        max_distance,
                         normal_difference,
+                        ..
                     } => {
                         let normal = particle.normal;
 

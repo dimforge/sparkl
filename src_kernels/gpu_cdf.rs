@@ -1,7 +1,6 @@
 use crate::cuda::AtomicInt;
-use cuda_std::GpuFloat;
-use na::{matrix, vector, Matrix, Matrix3, Matrix4, Vector3, Vector4};
-use sparkl_core::math::{Real, Vector};
+use na::ComplexField;
+use sparkl_core::math::Real;
 use sparkl_core::prelude::{CdfColor, ParticleCdf};
 
 const FREE: u32 = 0;

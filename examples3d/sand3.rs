@@ -17,7 +17,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let cell_width = 0.025;
     let mut colliders = ColliderSet::new();
-    let ground_height = cell_width * 10.0;
+    let _ground_height = cell_width * 10.0;
     let ground_half_side = 20.0;
 
     let (nx, ny) = (40, 40);
@@ -82,7 +82,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
-    let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    let plugin = MpmTestbedPlugin::new(models, particles, cell_width);
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;

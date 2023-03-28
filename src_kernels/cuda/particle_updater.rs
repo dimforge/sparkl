@@ -5,7 +5,6 @@ use sparkl_core::prelude::{
     ParticleVelocity, ParticleVolume,
 };
 
-use na::vector;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
 

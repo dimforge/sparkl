@@ -1,21 +1,20 @@
-use crate::cuda::atomic::{AtomicAdd, AtomicInt};
-use crate::cuda::{DefaultParticleUpdater, ParticleUpdater};
-use crate::gpu_grid::{GpuGrid, GpuGridProjectionStatus};
 use crate::{
+    cuda::{
+        atomic::{AtomicAdd, AtomicInt},
+        DefaultParticleUpdater, ParticleUpdater,
+    },
+    gpu_grid::{GpuGrid, GpuGridProjectionStatus},
     BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
     NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
 };
-use core::iter::{Map, Zip};
-use core::slice::Iter;
-use cuda_std::thread;
-use cuda_std::GpuFloat;
-use cuda_std::*;
-use na::distance;
-use na::{matrix, vector, Matrix3, Matrix4, Vector3, Vector4};
-use sparkl_core::math::{Kernel, Matrix, Real, Vector, DIM};
-use sparkl_core::prelude::{
-    CdfColor, DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
-    ParticleVelocity, ParticleVolume,
+use cuda_std::{kernel, shared_array, thread};
+use na::{matrix, vector, ComplexField};
+use sparkl_core::{
+    math::{Kernel, Matrix, Real, Vector, DIM},
+    prelude::{
+        CdfColor, DamageModel, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
+        ParticleVelocity, ParticleVolume,
+    },
 };
 
 #[cfg(feature = "dim2")]
@@ -121,13 +120,13 @@ pub struct InterpolatedParticleData {
     color: CdfColor,
     weighted_tags: [Real; 16],
     #[cfg(feature = "dim2")]
-    weight_matrix: Matrix3<Real>,
+    weight_matrix: na::Matrix3<Real>,
     #[cfg(feature = "dim2")]
-    weight_vector: Vector3<Real>,
+    weight_vector: na::Vector3<Real>,
     #[cfg(feature = "dim3")]
-    weight_matrix: Matrix4<Real>,
+    weight_matrix: na::Matrix4<Real>,
     #[cfg(feature = "dim3")]
-    weight_vector: Vector4<Real>,
+    weight_vector: na::Vector4<Real>,
 }
 
 impl Default for InterpolatedParticleData {
@@ -447,7 +446,7 @@ unsafe fn g2p(
     }
 
     let mut new_particle_cdf = interpolated_data.compute_particle_cdf();
-    let penetration = new_particle_cdf.check_and_correct_penetration(particle_cdf);
+    let _penetration = new_particle_cdf.check_and_correct_penetration(particle_cdf);
     *particle_cdf = new_particle_cdf;
 
     for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
