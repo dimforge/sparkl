@@ -3,6 +3,7 @@ use crate::{
         atomic::{AtomicAdd, AtomicInt},
         DefaultParticleUpdater, ParticleUpdater,
     },
+    gpu_cdf::ENABLE_CDF,
     gpu_grid::{GpuGrid, GpuGridProjectionStatus},
     BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
     NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
@@ -379,7 +380,6 @@ unsafe fn particle_g2p2g(
     particle_updater: impl ParticleUpdater,
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
-        dt,
         colliders,
         particle_status,
         particle_pos,
@@ -421,7 +421,6 @@ unsafe fn particle_g2p2g(
 }
 
 unsafe fn g2p(
-    dt: Real,
     colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
@@ -457,14 +456,8 @@ unsafe fn g2p(
             let collider = colliders
                 .get(cell.cdf.closest_collider_index as usize)
                 .unwrap();
-            let projected_velocity =
-                collider.project_particle_velocity(cell.velocity, particle_cdf.normal);
 
-            // Todo: do we actually need this? what is the difference to the penatly force? how to choose the penalty (c)
-            let penalty = 1.0;
-            let penalty_velocity = dt * penalty * particle_cdf.normal;
-
-            projected_velocity + penalty_velocity
+            collider.project_particle_velocity(cell.velocity, particle_cdf.normal)
         };
 
         interpolated_data.velocity += weight * velocity;
@@ -486,7 +479,7 @@ unsafe fn g2p(
     }
 
     // Todo: do we still require this after the CDF update?
-    {
+    if !ENABLE_CDF {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
         let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
         let dpt = shared_kernel.ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
@@ -507,6 +500,7 @@ unsafe fn g2p(
             }
         }
     }
+
     (interpolated_data, artificial_pressure_force)
 }
 

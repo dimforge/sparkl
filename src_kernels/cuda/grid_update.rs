@@ -1,11 +1,15 @@
-use crate::gpu_collider::{GpuCollider, GpuColliderSet};
-use crate::gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus};
-use crate::BlockHeaderId;
-use cuda_std::thread;
-use cuda_std::*;
+use crate::{
+    gpu_cdf::ENABLE_CDF,
+    gpu_collider::{GpuCollider, GpuColliderSet},
+    gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus},
+    BlockHeaderId,
+};
+use cuda_std::{thread, *};
 use na::{vector, Unit};
-use sparkl_core::dynamics::solver::BoundaryHandling;
-use sparkl_core::math::{Point, Real, Vector};
+use sparkl_core::{
+    dynamics::solver::BoundaryHandling,
+    math::{Point, Real, Vector},
+};
 
 #[kernel] // NOTE: must be called with 4x4x4 (in 3D) or 4x4 (in 2D) threads per block.
 pub unsafe fn grid_update(
@@ -35,8 +39,8 @@ pub unsafe fn grid_update(
     let cell_width = next_grid.cell_width();
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
-        // If CDF enabled
-        if true {
+        // Todo: remove this after the CDF update
+        if ENABLE_CDF {
             update_cell(dt, cell, gravity);
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;

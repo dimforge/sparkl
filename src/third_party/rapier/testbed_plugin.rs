@@ -7,7 +7,7 @@ use crate::math::{Real, Vector};
 use crate::pipelines::MpmPipeline;
 use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
 use crate::third_party::rapier::visualization::{
-    visualization_ui, ParticleMode, VisualizationMode,
+    visualization_ui, GridMode, ParticleMode, VisualizationMode, COLORS,
 };
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
@@ -719,33 +719,37 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         ..
                     } => {
                         let mut color = if particle.color.affinities() == 0 {
-                            [0.0; 3]
+                            vector![0.0, 0.0, 0.0, 0.0]
                         } else {
-                            [1.0; 3]
+                            vector![1.0, 1.0, 1.0, 1.0]
                         };
 
-                        if show_color {
-                            // Todo: blend multiple colors together, instead of the 3 base colors
-                            for i in 0..3 {
-                                let affinity = particle.color.affinity(i);
-                                color[i as usize] = affinity as f32;
+                        if particle.color.affinities() > 0 {
+                            if show_color {
+                                color = vector![0.0, 0.0, 0.0, 0.0];
+
+                                let mut count = 0;
+                                for i in 0..16 {
+                                    let affinity = particle.color.affinity(i);
+                                    count += affinity;
+                                    let color_index = i as usize % COLORS.len();
+                                    color += COLORS[color_index] * affinity as f32;
+                                }
+
+                                color = color / count as f32;
+                            }
+
+                            if show_distance {
+                                let unsigned_distance = particle.distance.abs();
+                                let relative_distance =
+                                    unsigned_distance / (cell_width * max_distance);
+                                let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
+
+                                color = color * intensity;
                             }
                         }
 
-                        if show_distance {
-                            let unsigned_distance = particle.distance.abs();
-                            let relative_distance = unsigned_distance / (cell_width * max_distance);
-                            let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
-
-                            color = [
-                                color[0] * intensity,
-                                color[1] * intensity,
-                                color[2] * intensity,
-                            ]
-                            // color[1] = if particle.distance > 0.0 { 1.0 } else { 0.0 };}
-                        }
-
-                        color
+                        color.remove_row(3).into()
                     }
                 };
 
@@ -844,18 +848,21 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             pos_z,
                         ];
 
-                        let mut color = [0.0, 0.0, 0.0, 1.0];
+                        let color_index = particle.collider_index as usize % COLORS.len();
+                        let mut color = COLORS[color_index];
                         let color_index = particle.color_index as usize;
-                        let intensity = (color_index % mode.rigid_particle_len) as f32
-                            / mode.rigid_particle_len as f32;
-                        color[particle.collider_index as usize] = intensity;
+                        let intensity = 1.0
+                            - (color_index % mode.rigid_particle_len) as f32
+                                / mode.rigid_particle_len as f32;
+
+                        color = color * intensity;
 
                         let scale = mode.rigid_particle_scale;
 
                         instance_data.push(ParticleInstanceData {
                             position: pos.into(),
                             scale,
-                            color,
+                            color: color.into(),
                         });
                     }
                 }
@@ -868,6 +875,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
                 if let Some(block_header) = grid_data.grid_hash_map.get(block_virtual) {
                     let block_physical = block_header.to_physical();
+
+                    let color_index = (block_virtual.0 % COLORS.len() as u64) as usize;
+                    let block_color = COLORS[color_index];
 
                     for i in 0..NUM_CELL_PER_BLOCK as usize {
                         let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
@@ -885,40 +895,61 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             let pos = [node_position.x as f32, node_position.y as f32, pos_z];
 
                             let scale = mode.grid_scale;
-                            let mut color = if node.cdf.color.affinities() == 0 {
-                                [0.0; 4]
-                            } else {
-                                [1.0; 4]
+
+                            let (color, show) = match mode.grid_mode {
+                                GridMode::Blocks => (block_color, true),
+                                GridMode::Cdf {
+                                    show_distance,
+                                    show_color,
+                                    only_show_affine,
+                                    max_distance,
+                                } => {
+                                    let mut color = if node.cdf.color.affinities() == 0 {
+                                        vector![0.0, 0.0, 0.0, 0.0]
+                                    } else {
+                                        vector![1.0, 1.0, 1.0, 1.0]
+                                    };
+
+                                    if node.cdf.color.affinities() > 0 {
+                                        if show_color {
+                                            color = vector![0.0, 0.0, 0.0, 0.0];
+
+                                            let mut count = 0;
+                                            for i in 0..16 {
+                                                let affinity = node.cdf.color.affinity(i);
+                                                count += affinity;
+                                                let color_index = i as usize % COLORS.len();
+                                                color += COLORS[color_index] * affinity as f32;
+                                            }
+
+                                            color = color / count as f32;
+                                        }
+
+                                        if show_distance {
+                                            let unsigned_distance = node.cdf.unsigned_distance;
+                                            let relative_distance =
+                                                unsigned_distance / (cell_width * max_distance);
+                                            let intensity =
+                                                na::clamp(1.0 - relative_distance, 0.0, 1.0);
+
+                                            color = color * intensity;
+                                        }
+                                    }
+
+                                    let show =
+                                        !(only_show_affine && node.cdf.color.affinities() == 0);
+
+                                    (color, show)
+                                }
                             };
 
-                            if node.cdf.color.affinities() > 0 {
-                                if mode.grid_color {
-                                    for i in 0..3 {
-                                        let affinity = node.cdf.color.affinity(i);
-                                        color[i as usize] = affinity as f32;
-                                    }
-                                }
-
-                                if mode.grid_distance {
-                                    let unsigned_distance = node.cdf.unsigned_distance;
-                                    let relative_distance =
-                                        unsigned_distance / (cell_width * mode.grid_max_distance);
-                                    let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
-
-                                    color = [
-                                        color[0] * intensity,
-                                        color[1] * intensity,
-                                        color[2] * intensity,
-                                        1.0,
-                                    ]
-                                }
+                            if show {
+                                instance_data.push(ParticleInstanceData {
+                                    position: pos.into(),
+                                    scale,
+                                    color: color.into(),
+                                });
                             }
-
-                            instance_data.push(ParticleInstanceData {
-                                position: pos.into(),
-                                scale,
-                                color,
-                            });
                         }
                     }
                 }

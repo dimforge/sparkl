@@ -4,3 +4,4 @@ mod testbed_plugin;
 mod visualization;
 
 pub use testbed_plugin::{MpmTestbedPlugin, UserCallback};
+pub use visualization::COLORS;
