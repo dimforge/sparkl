@@ -1,4 +1,4 @@
-use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
+use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel, ENABLE_CDF};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
@@ -198,17 +198,23 @@ impl ParticleUpdater for DefaultParticleUpdater {
             }
         }
 
-        let penetration = false;
+        let penetration = particle_cdf.color.1 != 0;
         /*
          * Particle projection.
          * TODO: refactor to its own function.
          */
         let mut penalty_force = Vector::zeros();
-        if false {
+        if ENABLE_CDF {
             if penetration {
                 // Todo: figure out why this does nothing
-                let penalty_stiffness = 0.005;
-                penalty_force = -penalty_stiffness * particle_cdf.distance * particle_cdf.normal;
+                // let collider = colliders
+                //     .get(particle_cdf.closest_collider_index as usize)
+                //     .unwrap();
+                //
+                // let penalty_stiffness = collider.penalty_stiffness;
+                let penalty_stiffness = 10.0;
+                penalty_force =
+                    penalty_stiffness * particle_cdf.distance.abs() * particle_cdf.normal;
             }
         }
 

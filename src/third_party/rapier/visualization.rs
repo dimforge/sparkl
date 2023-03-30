@@ -127,9 +127,9 @@ const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
     ParticleMode::Blocks { block_len: 8 },
     ParticleMode::Cdf {
         show_affinity: true,
-        show_tag: true,
-        show_distance: false,
-        show_normal: false,
+        show_tag: false,
+        show_distance: true,
+        show_normal: true,
         only_show_affine: false,
         tag_difference: 0.8,
         normal_difference: 0.5,
@@ -141,8 +141,8 @@ const DEFAULT_GRID_MODES: [GridMode; 2] = [
     GridMode::Blocks,
     GridMode::Cdf {
         show_affinity: true,
-        show_tag: true,
-        show_distance: false,
+        show_tag: false,
+        show_distance: true,
         only_show_affine: true,
         tag_difference: 0.8,
         max_distance: 1.2,
@@ -336,6 +336,11 @@ pub fn cdf_color(
     }
 
     color = color / count;
+
+    // highlight penetration
+    if cdf_color.1 != 0 {
+        color = vector![1.0, 0.0, 1.0, 1.0];
+    }
 
     if show_distance {
         let relative_distance = unsigned_distance / (cell_width * max_distance);
