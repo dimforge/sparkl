@@ -40,9 +40,15 @@ impl NodeCdf {
 
             self.color.set_affinity(collider_index);
 
+            // Ideally we would only want to set the tag if the distance between the node and
+            // the particle is the minimum for the collider. Unfortunately, we can not distinguish
+            // between the distances to the different colliders, thus we update the tag for each
+            // affine particle. This assumes that the node lies on the same side of all triangles
+            // belonging to the same collider. This might not be true for geometry with sharp edges.
+            self.color.update_tag(collider_index, signed_distance);
+
             // only update the tag information if the new distance is smaller than the old one
             if unsigned_distance < self.unsigned_distance {
-                self.color.update_tag(collider_index, signed_distance);
                 self.unsigned_distance = unsigned_distance;
                 self.closest_collider_index = collider_index;
             }

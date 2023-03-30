@@ -22,11 +22,11 @@ pub struct VisualizationMode {
 impl Default for VisualizationMode {
     fn default() -> Self {
         Self {
-            particle_mode: ParticleMode::StaticColor,
+            particle_mode: DEFAULT_PARTICLE_MODES[5],
             show_particles: true,
             particle_scale: 0.02,
             particle_volume: true,
-            grid_mode: GridMode::Blocks,
+            grid_mode: DEFAULT_GRID_MODES[1],
             show_grid: false,
             grid_scale: 0.06,
             show_rigid_particles: false,
@@ -65,6 +65,7 @@ pub enum ParticleMode {
         show_tag: bool,
         show_distance: bool,
         show_normal: bool,
+        only_show_affine: bool,
         tag_difference: f32,
         normal_difference: f32,
         max_distance: f32,
@@ -126,9 +127,10 @@ const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
     ParticleMode::Blocks { block_len: 8 },
     ParticleMode::Cdf {
         show_affinity: true,
-        show_tag: false,
-        show_distance: true,
-        show_normal: true,
+        show_tag: true,
+        show_distance: false,
+        show_normal: false,
+        only_show_affine: false,
         tag_difference: 0.8,
         normal_difference: 0.5,
         max_distance: 1.2,
@@ -139,8 +141,8 @@ const DEFAULT_GRID_MODES: [GridMode; 2] = [
     GridMode::Blocks,
     GridMode::Cdf {
         show_affinity: true,
-        show_tag: false,
-        show_distance: true,
+        show_tag: true,
+        show_distance: false,
         only_show_affine: true,
         tag_difference: 0.8,
         max_distance: 1.2,
@@ -210,6 +212,7 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
                         show_tag,
                         show_distance,
                         show_normal,
+                        only_show_affine,
                         tag_difference,
                         normal_difference,
                         max_distance,
@@ -218,6 +221,7 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
                         ui.checkbox(show_tag, "Show Tag");
                         ui.checkbox(show_distance, "Show Distance");
                         ui.checkbox(show_normal, "Show Normal");
+                        ui.checkbox(only_show_affine, "Only Show Affine");
                         ui.add(egui::Slider::new(tag_difference, 0.0..=1.0).text("Tag Difference"));
                         ui.add(
                             egui::Slider::new(normal_difference, 0.0..=1.0)
@@ -291,7 +295,7 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
         });
 }
 
-pub fn visualize_cdf_color(
+pub fn cdf_color(
     cdf_color: CdfColor,
     unsigned_distance: f32,
     show_affinity: bool,
@@ -341,4 +345,15 @@ pub fn visualize_cdf_color(
     }
 
     color
+}
+
+pub fn cdf_show(
+    cdf_color: CdfColor,
+    only_show_affine: bool,
+    debug_single_collider: bool,
+    collider_index: u32,
+) -> bool {
+    !only_show_affine
+        || (only_show_affine && !debug_single_collider && cdf_color.affinities() != 0)
+        || (only_show_affine && debug_single_collider && cdf_color.affinity(collider_index) == 1)
 }

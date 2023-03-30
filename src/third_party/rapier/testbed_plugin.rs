@@ -1,26 +1,26 @@
 use super::point_cloud_render::ParticleInstanceData;
-use crate::core::dynamics::ParticleData;
-use crate::cuda::HostSparseGridData;
-use crate::dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet};
-use crate::geometry::SpGrid;
-use crate::math::{Real, Vector};
-use crate::pipelines::MpmPipeline;
-use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
-use crate::third_party::rapier::visualization::{
-    visualization_ui, GridMode, ParticleMode, VisualizationMode, COLORS,
+use crate::{
+    core::dynamics::ParticleData,
+    cuda::HostSparseGridData,
+    dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet},
+    geometry::SpGrid,
+    kernels::NUM_CELL_PER_BLOCK,
+    math::{Real, Vector},
+    pipelines::MpmPipeline,
+    prelude::{MpmHooks, RigidWorld, SolverParameters},
+    third_party::rapier::visualization::{
+        cdf_color, cdf_show, visualization_ui, GridMode, ParticleMode, VisualizationMode, COLORS,
+    },
 };
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 use instant::Duration;
 use na::{vector, Point3, Vector3};
-use rapier::data::Coarena;
-use rapier::geometry::ColliderSet;
-use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
+use rapier::{data::Coarena, geometry::ColliderSet};
 
 #[cfg(feature = "dim3")]
 use super::point_cloud_render::ParticleInstanceMaterialData;
-use crate::third_party::rapier::visualize_cdf_color;
-use sparkl3d_kernels::NUM_CELL_PER_BLOCK;
+use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
 #[cfg(feature = "cuda")]
 use {
     crate::{
@@ -646,13 +646,13 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     pos_z,
                 ];
 
-                let color = match self.visualization_mode.particle_mode {
+                let (show, color) = match self.visualization_mode.particle_mode {
                     ParticleMode::Blocks { block_len } => {
                         while self.blocks_color.len() <= self.particles.len() / block_len {
                             self.blocks_color.push((graphics.next_color() / 2.0).into());
                         }
 
-                        self.blocks_color[i / block_len]
+                        (true, self.blocks_color[i / block_len])
                     }
                     ParticleMode::Position { mins, maxs } => {
                         let color = (particle.position - mins)
@@ -661,7 +661,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             .map(|e| (e * 30.0).floor() / 60.0);
                         #[cfg(feature = "dim2")]
                         let color = color.push(0.0);
-                        color.into()
+                        (true, color.into())
                     }
                     ParticleMode::DensityRatio { max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
@@ -669,12 +669,14 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         let blue = Vector3::z();
                         let ratio = particle.density_def_grad() / particle.density0();
 
-                        if ratio > 1.0 {
+                        let color = if ratio > 1.0 {
                             let coeff = (ratio - 1.0) / max;
                             base_color.coords.lerp(&red, coeff).into()
                         } else {
                             blue.lerp(&base_color.coords, ratio).into()
-                        }
+                        };
+
+                        (true, color)
                     }
                     ParticleMode::VelocityColor { min, max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
@@ -705,24 +707,27 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             );
                             [lerp.x, lerp.y, lerp.z]
                         };
-                        color
+                        (true, color)
                     }
-                    ParticleMode::StaticColor => self
-                        .model_colors
-                        .get(particle.model)
-                        .copied()
-                        .unwrap()
-                        .into(),
+                    ParticleMode::StaticColor => (
+                        true,
+                        self.model_colors
+                            .get(particle.model)
+                            .copied()
+                            .unwrap()
+                            .into(),
+                    ),
                     ParticleMode::Cdf {
                         show_affinity,
                         show_tag,
                         show_distance,
                         show_normal,
+                        only_show_affine,
                         tag_difference,
                         normal_difference,
                         max_distance,
                     } => {
-                        let color = visualize_cdf_color(
+                        let color = cdf_color(
                             particle.color,
                             particle.distance.abs(),
                             show_affinity,
@@ -733,11 +738,24 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             cell_width,
                             mode.debug_single_collider,
                             mode.collider_index,
+                        )
+                        .remove_row(3)
+                        .into();
+
+                        let show = cdf_show(
+                            particle.color,
+                            only_show_affine,
+                            mode.debug_single_collider,
+                            mode.collider_index,
                         );
 
-                        color.remove_row(3).into()
+                        (show, color)
                     }
                 };
+
+                if !show {
+                    continue;
+                }
 
                 let color = [color[0], color[1], color[2], 1.0];
 
@@ -898,7 +916,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                     tag_difference,
                                     max_distance,
                                 } => {
-                                    let color = visualize_cdf_color(
+                                    let color = cdf_color(
                                         node.cdf.color,
                                         node.cdf.unsigned_distance,
                                         show_affinity,
@@ -911,13 +929,12 @@ impl TestbedPlugin for MpmTestbedPlugin {
                                         mode.collider_index,
                                     );
 
-                                    let show = !only_show_affine
-                                        || (only_show_affine
-                                            && !mode.debug_single_collider
-                                            && node.cdf.color.affinities() != 0)
-                                        || (only_show_affine
-                                            && mode.debug_single_collider
-                                            && node.cdf.color.affinity(mode.collider_index) == 1);
+                                    let show = cdf_show(
+                                        node.cdf.color,
+                                        only_show_affine,
+                                        mode.debug_single_collider,
+                                        mode.collider_index,
+                                    );
 
                                     (color, show)
                                 }

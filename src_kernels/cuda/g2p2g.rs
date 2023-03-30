@@ -225,7 +225,7 @@ impl InterpolatedParticleData {
         // calculate the final distance and the normal of the particle
         if let Some(inverse_matrix) = self.weight_matrix.try_inverse() {
             // discard the distance, if the sample weight is too insignificant
-            if self.weight_matrix.determinant().abs() > 1.0e-8 {
+            if self.weight_matrix.determinant().abs() > 1.0e-7 {
                 let result = inverse_matrix * self.weight_vector;
 
                 let color = self.color;
