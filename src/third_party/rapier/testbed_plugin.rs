@@ -19,6 +19,7 @@ use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlu
 
 #[cfg(feature = "dim3")]
 use super::point_cloud_render::ParticleInstanceMaterialData;
+use crate::third_party::rapier::visualize_cdf_color;
 use sparkl3d_kernels::NUM_CELL_PER_BLOCK;
 #[cfg(feature = "cuda")]
 use {
@@ -713,41 +714,26 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         .unwrap()
                         .into(),
                     ParticleMode::Cdf {
+                        show_affinity,
+                        show_tag,
                         show_distance,
-                        show_color,
+                        show_normal,
+                        tag_difference,
+                        normal_difference,
                         max_distance,
-                        ..
                     } => {
-                        let mut color = if particle.color.affinities() == 0 {
-                            vector![0.0, 0.0, 0.0, 0.0]
-                        } else {
-                            vector![1.0, 1.0, 1.0, 1.0]
-                        };
-
-                        if particle.color.affinities() > 0 {
-                            if show_color {
-                                color = vector![0.0, 0.0, 0.0, 0.0];
-
-                                let mut count = 0;
-                                for i in 0..16 {
-                                    let affinity = particle.color.affinity(i);
-                                    count += affinity;
-                                    let color_index = i as usize % COLORS.len();
-                                    color += COLORS[color_index] * affinity as f32;
-                                }
-
-                                color = color / count as f32;
-                            }
-
-                            if show_distance {
-                                let unsigned_distance = particle.distance.abs();
-                                let relative_distance =
-                                    unsigned_distance / (cell_width * max_distance);
-                                let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
-
-                                color = color * intensity;
-                            }
-                        }
+                        let color = visualize_cdf_color(
+                            particle.color,
+                            particle.distance.abs(),
+                            show_affinity,
+                            show_tag,
+                            show_distance,
+                            tag_difference,
+                            max_distance,
+                            cell_width,
+                            mode.debug_single_collider,
+                            mode.collider_index,
+                        );
 
                         color.remove_row(3).into()
                     }
@@ -834,6 +820,12 @@ impl TestbedPlugin for MpmTestbedPlugin {
             if let Some(cuda_data) = self.cuda_data.get(0) {
                 if let Some(colliders) = &cuda_data.colliders {
                     for particle in &colliders.rigid_particles {
+                        if mode.debug_single_collider
+                            && particle.collider_index != mode.collider_index
+                        {
+                            continue;
+                        }
+
                         let collider = colliders.gpu_colliders[particle.collider_index as usize];
 
                         let particle_position = collider.position * particle.position;
@@ -899,45 +891,33 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             let (color, show) = match mode.grid_mode {
                                 GridMode::Blocks => (block_color, true),
                                 GridMode::Cdf {
+                                    show_affinity,
+                                    show_tag,
                                     show_distance,
-                                    show_color,
                                     only_show_affine,
+                                    tag_difference,
                                     max_distance,
                                 } => {
-                                    let mut color = if node.cdf.color.affinities() == 0 {
-                                        vector![0.0, 0.0, 0.0, 0.0]
-                                    } else {
-                                        vector![1.0, 1.0, 1.0, 1.0]
-                                    };
+                                    let color = visualize_cdf_color(
+                                        node.cdf.color,
+                                        node.cdf.unsigned_distance,
+                                        show_affinity,
+                                        show_tag,
+                                        show_distance,
+                                        tag_difference,
+                                        max_distance,
+                                        cell_width,
+                                        mode.debug_single_collider,
+                                        mode.collider_index,
+                                    );
 
-                                    if node.cdf.color.affinities() > 0 {
-                                        if show_color {
-                                            color = vector![0.0, 0.0, 0.0, 0.0];
-
-                                            let mut count = 0;
-                                            for i in 0..16 {
-                                                let affinity = node.cdf.color.affinity(i);
-                                                count += affinity;
-                                                let color_index = i as usize % COLORS.len();
-                                                color += COLORS[color_index] * affinity as f32;
-                                            }
-
-                                            color = color / count as f32;
-                                        }
-
-                                        if show_distance {
-                                            let unsigned_distance = node.cdf.unsigned_distance;
-                                            let relative_distance =
-                                                unsigned_distance / (cell_width * max_distance);
-                                            let intensity =
-                                                na::clamp(1.0 - relative_distance, 0.0, 1.0);
-
-                                            color = color * intensity;
-                                        }
-                                    }
-
-                                    let show =
-                                        !(only_show_affine && node.cdf.color.affinities() == 0);
+                                    let show = !only_show_affine
+                                        || (only_show_affine
+                                            && !mode.debug_single_collider
+                                            && node.cdf.color.affinities() != 0)
+                                        || (only_show_affine
+                                            && mode.debug_single_collider
+                                            && node.cdf.color.affinity(mode.collider_index) == 1);
 
                                     (color, show)
                                 }

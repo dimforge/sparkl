@@ -92,7 +92,7 @@ pub fn generate_rigid_particles(
     collider_index: u32,
     cell_width: Real,
 ) {
-    let cell_width = cell_width / 2.0;
+    // let cell_width = cell_width / 2.0;
 
     for (triangle_index, triangle) in indices[index_range.clone()].chunks(3).enumerate() {
         let triangle = Triangle {
@@ -147,6 +147,11 @@ fn cover_triangle(
     let base = triangle.b - triangle.a;
     let base_length = base.norm();
     let base_dir = base / base_length;
+
+    // Calculate the step increment on the base.
+    let base_step_count = (base_length / cell_width).ceil();
+    let base_step = base_dir * base_length / base_step_count;
+
     // Project C on the base AB.
     let ac_offset_length = ac.dot(&base_dir);
     let bc_offset_length = base_length - ac_offset_length;
@@ -157,36 +162,27 @@ fn cover_triangle(
     // Calculate the tangents.
     let tan_alpha = height_length / ac_offset_length;
     let tan_beta = height_length / bc_offset_length;
-    // Calculate the step increments on the base and the height.
-    let base_step = cell_width * base_dir;
-    let height_step = cell_width * height_dir;
 
-    let mut triangle_d = triangle.a;
+    for i in 0..=base_step_count as u32 {
+        let base_position = triangle.a + (i as f32) * base_step;
 
-    // step along the base in cell_width increments
-    while distance(&triangle.a, &triangle_d) <= base_length {
-        let height_ac = tan_alpha * distance(&triangle.a, &triangle_d);
-        let height_bc = tan_beta * distance(&triangle.b, &triangle_d);
-        let min_height = height_ac.min(height_bc);
+        let height_ac = tan_alpha * distance(&triangle.a, &base_position);
+        let height_bc = tan_beta * distance(&triangle.b, &base_position);
+        let height_length = height_ac.min(height_bc);
 
-        let mut particle_position = triangle_d;
+        // Calculate the step increment on the height.
+        let height_step_count = (height_length / cell_width).ceil();
+        let height_step = height_dir * height_length / height_step_count;
 
-        let mut color_index = 0;
+        for j in 0..=height_step_count as u32 {
+            let particle_position = base_position + (j as f32) * height_step;
 
-        // step along the height in cell_width increments
-        while distance(&triangle_d, &particle_position) <= min_height {
             rigid_particles.push(RigidParticle {
                 position: particle_position,
                 collider_index,
                 triangle_index,
-                color_index,
+                color_index: j as u32,
             });
-
-            color_index += 1;
-
-            particle_position += height_step;
         }
-
-        triangle_d += base_step;
     }
 }

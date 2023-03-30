@@ -1,4 +1,4 @@
-use crate::core::math::Vector;
+use crate::core::{math::Vector, prelude::CdfColor};
 use bevy_egui::{egui, EguiContext};
 use na::{vector, Vector4};
 use std::mem;
@@ -15,6 +15,8 @@ pub struct VisualizationMode {
     pub show_rigid_particles: bool,
     pub rigid_particle_len: usize,
     pub rigid_particle_scale: f32,
+    pub debug_single_collider: bool,
+    pub collider_index: u32,
 }
 
 impl Default for VisualizationMode {
@@ -30,49 +32,11 @@ impl Default for VisualizationMode {
             show_rigid_particles: false,
             rigid_particle_len: 10,
             rigid_particle_scale: 0.02,
+            debug_single_collider: false,
+            collider_index: 0,
         }
     }
 }
-
-const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
-    ParticleMode::StaticColor,
-    ParticleMode::VelocityColor {
-        min: 0.0,
-        max: 100.0,
-    },
-    ParticleMode::DensityRatio { max: 10.0 },
-    ParticleMode::Position {
-        mins: vector![-10.0, -10.0, -10.0],
-        maxs: vector![10.0, 10.0, 10.0],
-    },
-    ParticleMode::Blocks { block_len: 8 },
-    ParticleMode::Cdf {
-        show_distance: true,
-        show_normal: true,
-        show_color: true,
-        max_distance: 1.2,
-        normal_difference: 0.5,
-    },
-];
-
-const DEFAULT_GRID_MODES: [GridMode; 2] = [
-    GridMode::Blocks,
-    GridMode::Cdf {
-        show_distance: true,
-        show_color: true,
-        only_show_affine: true,
-        max_distance: 1.2,
-    },
-];
-
-pub const COLORS: [Vector4<f32>; 6] = [
-    vector![191.0 / 255.0, 57.0 / 255.0, 43.0 / 255.0, 0.0],
-    vector![155.0 / 255.0, 89.0 / 255.0, 182.0 / 255.0, 0.0],
-    vector![41.0 / 255.0, 128.0 / 255.0, 185.0 / 255.0, 0.0],
-    vector![38.0 / 255.0, 174.0 / 255.0, 96.0 / 255.0, 0.0],
-    vector![241.0 / 255.0, 196.0 / 255.0, 15.0 / 255.0, 0.0],
-    vector![229.0 / 255.0, 126.0 / 255.0, 35.0 / 255.0, 0.0],
-];
 
 /// How the fluids should be rendered by the testbed.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -97,11 +61,13 @@ pub enum ParticleMode {
         block_len: usize,
     },
     Cdf {
+        show_affinity: bool,
+        show_tag: bool,
         show_distance: bool,
         show_normal: bool,
-        show_color: bool,
-        max_distance: f32,
+        tag_difference: f32,
         normal_difference: f32,
+        max_distance: f32,
     },
 }
 
@@ -125,9 +91,11 @@ impl ParticleMode {
 pub enum GridMode {
     Blocks,
     Cdf {
+        show_affinity: bool,
+        show_tag: bool,
         show_distance: bool,
-        show_color: bool,
         only_show_affine: bool,
+        tag_difference: f32,
         max_distance: f32,
     },
 }
@@ -143,6 +111,50 @@ impl GridMode {
         }
     }
 }
+
+const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
+    ParticleMode::StaticColor,
+    ParticleMode::VelocityColor {
+        min: 0.0,
+        max: 100.0,
+    },
+    ParticleMode::DensityRatio { max: 10.0 },
+    ParticleMode::Position {
+        mins: vector![-10.0, -10.0, -10.0],
+        maxs: vector![10.0, 10.0, 10.0],
+    },
+    ParticleMode::Blocks { block_len: 8 },
+    ParticleMode::Cdf {
+        show_affinity: true,
+        show_tag: false,
+        show_distance: true,
+        show_normal: true,
+        tag_difference: 0.8,
+        normal_difference: 0.5,
+        max_distance: 1.2,
+    },
+];
+
+const DEFAULT_GRID_MODES: [GridMode; 2] = [
+    GridMode::Blocks,
+    GridMode::Cdf {
+        show_affinity: true,
+        show_tag: false,
+        show_distance: true,
+        only_show_affine: true,
+        tag_difference: 0.8,
+        max_distance: 1.2,
+    },
+];
+
+pub const COLORS: [Vector4<f32>; 6] = [
+    vector![191.0 / 255.0, 57.0 / 255.0, 43.0 / 255.0, 0.0],
+    vector![155.0 / 255.0, 89.0 / 255.0, 182.0 / 255.0, 0.0],
+    vector![41.0 / 255.0, 128.0 / 255.0, 185.0 / 255.0, 0.0],
+    vector![38.0 / 255.0, 174.0 / 255.0, 96.0 / 255.0, 0.0],
+    vector![241.0 / 255.0, 196.0 / 255.0, 15.0 / 255.0, 0.0],
+    vector![229.0 / 255.0, 126.0 / 255.0, 35.0 / 255.0, 0.0],
+];
 
 pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiContext) {
     egui::Window::new("Debug Visualization")
@@ -194,20 +206,24 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
                         ui.add(egui::Slider::new(block_len, 1..=64).text("Block Length"));
                     }
                     ParticleMode::Cdf {
+                        show_affinity,
+                        show_tag,
                         show_distance,
                         show_normal,
-                        show_color,
-                        max_distance,
+                        tag_difference,
                         normal_difference,
+                        max_distance,
                     } => {
+                        ui.checkbox(show_affinity, "Show Affinity");
+                        ui.checkbox(show_tag, "Show Tag");
                         ui.checkbox(show_distance, "Show Distance");
                         ui.checkbox(show_normal, "Show Normal");
-                        ui.checkbox(show_color, "Show Color");
-                        ui.add(egui::Slider::new(max_distance, 0.001..=2.0).text("Max Distance"));
+                        ui.add(egui::Slider::new(tag_difference, 0.0..=1.0).text("Tag Difference"));
                         ui.add(
                             egui::Slider::new(normal_difference, 0.0..=1.0)
                                 .text("Normal Difference"),
                         );
+                        ui.add(egui::Slider::new(max_distance, 0.001..=2.0).text("Max Distance"));
                     }
                 }
             }
@@ -248,17 +264,81 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
                 match grid_mode {
                     GridMode::Blocks => {}
                     GridMode::Cdf {
+                        show_affinity,
+                        show_tag,
                         show_distance,
-                        show_color,
                         only_show_affine,
+                        tag_difference,
                         max_distance,
                     } => {
+                        ui.checkbox(show_affinity, "Show Affinity");
+                        ui.checkbox(show_tag, "Show Tag");
                         ui.checkbox(show_distance, "Show Distance");
-                        ui.checkbox(show_color, "Show Color");
-                        ui.checkbox(only_show_affine, "Only show affine");
+                        ui.checkbox(only_show_affine, "Only Show Affine");
+                        ui.add(egui::Slider::new(tag_difference, 0.0..=1.0).text("Tag Difference"));
                         ui.add(egui::Slider::new(max_distance, 0.001..=2.0).text("Max Distance"));
                     }
                 }
             }
+
+            ui.separator();
+            ui.heading("Collider Selection");
+            ui.checkbox(&mut mode.debug_single_collider, "Debug Single Collider");
+
+            if mode.debug_single_collider {
+                ui.add(egui::Slider::new(&mut mode.collider_index, 0..=15).text("Collider Index"));
+            }
         });
+}
+
+pub fn visualize_cdf_color(
+    cdf_color: CdfColor,
+    unsigned_distance: f32,
+    show_affinity: bool,
+    show_tag: bool,
+    show_distance: bool,
+    tag_difference: f32,
+    max_distance: f32,
+    cell_width: f32,
+    debug_single_collider: bool,
+    collider_index: u32,
+) -> Vector4<f32> {
+    let mut color = vector![0.0, 0.0, 0.0, 0.0];
+    let mut count = 0.00001;
+
+    for i in 0..16 {
+        if debug_single_collider && i != collider_index {
+            continue;
+        }
+
+        let affinity = cdf_color.affinity(i) as f32;
+        let tag = cdf_color.tag(i) as f32;
+
+        let color_i = if show_affinity {
+            let color_index = i as usize % COLORS.len();
+            COLORS[color_index]
+        } else {
+            vector![1.0, 1.0, 1.0, 1.0]
+        };
+
+        let intensity = if show_tag {
+            affinity * (1.0 - tag_difference * (1.0 - tag))
+        } else {
+            affinity
+        };
+
+        color += color_i * intensity;
+        count += affinity;
+    }
+
+    color = color / count;
+
+    if show_distance {
+        let relative_distance = unsigned_distance / (cell_width * max_distance);
+        let intensity = na::clamp(1.0 - relative_distance, 0.0, 1.0);
+
+        color = color * intensity;
+    }
+
+    color
 }

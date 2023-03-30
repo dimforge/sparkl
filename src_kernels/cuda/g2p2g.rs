@@ -171,7 +171,11 @@ impl InterpolatedParticleData {
             return;
         }
 
-        let sign = node_cdf.color.sign(node_cdf.closest_collider_index);
+        let particle_tag = self.color.tag(node_cdf.closest_collider_index);
+        let node_tag = node_cdf.color.tag(node_cdf.closest_collider_index);
+
+        let sign = if particle_tag == node_tag { 1.0 } else { -1.0 };
+
         let distance = sign * node_cdf.unsigned_distance;
         let weighted_distance = weight * distance;
         let outer_product = difference * difference.transpose();
@@ -209,6 +213,14 @@ impl InterpolatedParticleData {
         }
     }
 
+    pub fn compute_tags(&mut self) {
+        // turn the weighted tags into the proper tags of the particle
+        for collider_index in 0..16 {
+            let weighted_tag = self.weighted_tags[collider_index];
+            self.color.update_tag(collider_index as u32, weighted_tag);
+        }
+    }
+
     pub fn compute_particle_cdf(&self) -> ParticleCdf {
         // calculate the final distance and the normal of the particle
         if let Some(inverse_matrix) = self.weight_matrix.try_inverse() {
@@ -216,16 +228,10 @@ impl InterpolatedParticleData {
             if self.weight_matrix.determinant().abs() > 1.0e-8 {
                 let result = inverse_matrix * self.weight_vector;
 
+                let color = self.color;
                 let distance = result.x;
                 let gradient = result.remove_row(0);
                 let normal = gradient.normalize();
-                let mut color = self.color;
-
-                // turn the weighted tags into the proper tags of the particle
-                for collider_index in 0..16 {
-                    let weighted_tag = self.weighted_tags[collider_index];
-                    color.update_tag(collider_index as u32, weighted_tag);
-                }
 
                 return ParticleCdf {
                     color,
@@ -439,40 +445,45 @@ unsafe fn g2p(
     let mut artificial_pressure_force = Vector::zeros();
 
     // update particle cdf
-    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        interpolated_data.interpolate_color(cell.cdf, weight);
-        interpolated_data.interpolate_distance_and_normal(cell.cdf, weight, dpt);
+    for (node, weight, _dpt) in shared_kernel.iterate_kernel(cell_width) {
+        interpolated_data.interpolate_color(node.cdf, weight);
+    }
+
+    interpolated_data.compute_tags();
+
+    for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        interpolated_data.interpolate_distance_and_normal(node.cdf, weight, dpt);
     }
 
     let mut new_particle_cdf = interpolated_data.compute_particle_cdf();
     let _penetration = new_particle_cdf.check_and_correct_penetration(particle_cdf);
     *particle_cdf = new_particle_cdf;
 
-    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        let velocity = if cell.cdf.is_compatible(particle_cdf) {
-            cell.velocity
+    for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+        let velocity = if node.cdf.is_compatible(particle_cdf) {
+            node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
             let collider = colliders
-                .get(cell.cdf.closest_collider_index as usize)
+                .get(node.cdf.closest_collider_index as usize)
                 .unwrap();
 
-            collider.project_particle_velocity(cell.velocity, particle_cdf.normal)
+            collider.project_particle_velocity(node.velocity, particle_cdf.normal)
         };
 
         interpolated_data.velocity += weight * velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * velocity * dpt.transpose();
         interpolated_data.velocity_gradient_det += weight * velocity.dot(&dpt) * inv_d;
-        interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
+        interpolated_data.psi_pos_momentum += weight * node.psi_velocity;
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
         // "main" g2p2g kernel?
         if artificial_pressure_stiffness != 0.0
             && !particle_status.is_static
-            && cell.projection_status.is_outside()
+            && node.projection_status.is_outside()
         {
             artificial_pressure_force += weight
-                * (shared_kernel.midcell_mass - cell.prev_mass)
+                * (shared_kernel.midcell_mass - node.prev_mass)
                 * dpt
                 * artificial_pressure_stiffness;
         }
@@ -534,7 +545,7 @@ unsafe fn p2g(
     };
     let psi_pos_momentum = psi_mass * particle_phase.psi_pos;
 
-    for (cell, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
+    for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
         let added_mass = weight * particle_volume.mass;
         let added_momentum = weight * (affine * dpt + momentum);
         let added_psi_momentum = weight * psi_pos_momentum;
@@ -546,15 +557,15 @@ unsafe fn p2g(
         // on shared memory).
 
         // only update compatible particles
-        if cell.cdf.is_compatible(particle_cdf) {
+        if node.cdf.is_compatible(particle_cdf) {
             loop {
-                let old = cell.lock.shared_atomic_exch_acq(tid);
+                let old = node.lock.shared_atomic_exch_acq(tid);
                 if old == FREE {
-                    cell.mass += added_mass;
-                    cell.momentum += added_momentum;
-                    cell.psi_momentum += added_psi_momentum;
-                    cell.psi_mass += added_psi_mass;
-                    cell.lock.shared_atomic_exch_rel(FREE);
+                    node.mass += added_mass;
+                    node.momentum += added_momentum;
+                    node.psi_momentum += added_psi_momentum;
+                    node.psi_mass += added_psi_mass;
+                    node.lock.shared_atomic_exch_rel(FREE);
                     break;
                 }
             }
