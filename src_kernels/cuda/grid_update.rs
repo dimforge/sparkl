@@ -1,5 +1,4 @@
 use crate::{
-    gpu_cdf::ENABLE_CDF,
     gpu_collider::{GpuCollider, GpuColliderSet},
     gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus},
     BlockHeaderId,
@@ -18,6 +17,7 @@ pub unsafe fn grid_update(
     colliders_ptr: *const GpuCollider,
     num_colliders: usize,
     gravity: Vector<Real>,
+    enable_cdf: bool,
 ) {
     let bid = BlockHeaderId(thread::block_idx_x());
     #[cfg(feature = "dim2")]
@@ -40,7 +40,7 @@ pub unsafe fn grid_update(
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
         // Todo: remove this after the CDF update
-        if ENABLE_CDF {
+        if enable_cdf {
             update_cell(dt, cell, gravity);
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;

@@ -4,7 +4,6 @@ use crate::cuda::{
 };
 use crate::dynamics::solver::SolverParameters;
 use crate::kernels::cuda::G2P2G_THREADS;
-use crate::kernels::ENABLE_CDF;
 use crate::kernels::{GpuTimestepLength, NUM_CELL_PER_BLOCK};
 use crate::math::{Real, Vector};
 use cust::context::CurrentContext;
@@ -176,6 +175,7 @@ impl<'t> CudaMpmPipelineParameters<'t> {
 
 pub struct CudaMpmPipeline {
     step_id: u64,
+    pub enable_cdf: bool,
 }
 
 pub struct SingleGpuMpmContext<'a> {
@@ -262,7 +262,10 @@ impl CudaMpmPipeline {
     }
 
     pub fn new() -> Self {
-        Self { step_id: 0 }
+        Self {
+            step_id: 0,
+            enable_cdf: true,
+        }
     }
 
     pub fn step(
@@ -416,7 +419,7 @@ impl CudaMpmPipeline {
                     let block_size = (3, 3); // Todo: does not work, figure out why
                     #[cfg(feature = "dim3")]
                     let block_size = (3, 3, 3);
-                    if ENABLE_CDF {
+                    if self.enable_cdf {
                         launch!(
                             module.update_cdf<<<particle_count, block_size, 0, stream>>>(
                                 context.grid.next_device_elements(),
@@ -455,6 +458,7 @@ impl CudaMpmPipeline {
                                 G2P2G_THREADS as u32,
                                 timestep_length,
                                 true,
+                                self.enable_cdf,
                             )?;
                         }
 
@@ -523,6 +527,7 @@ impl CudaMpmPipeline {
                             G2P2G_THREADS as u32,
                             timestep_length,
                             false,
+                            self.enable_cdf,
                         )?;
                     }
 
@@ -581,6 +586,7 @@ impl CudaMpmPipeline {
                             coll_ptr,
                             coll_len,
                             *gravity,
+                            self.enable_cdf
                         )
                     )?;
 

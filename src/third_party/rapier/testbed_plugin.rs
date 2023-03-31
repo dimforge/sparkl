@@ -1020,6 +1020,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         {
             egui::Window::new("MPM Params").show(ui_context.ctx(), |ui| {
                 ui.checkbox(&mut self.run_on_gpu, "Run on GPU");
+                ui.checkbox(&mut self.cuda_pipeline.enable_cdf, "Enable CDF");
                 if let Some(timing) = &self.last_timing {
                     ui.collapsing("Pipeline Timings", |ui| {
                         ui.label(format!("dt: {:.2}ms", timing.dt * 1000.0));

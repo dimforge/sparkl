@@ -1,4 +1,4 @@
-use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel, ENABLE_CDF};
+use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
@@ -35,6 +35,7 @@ pub trait ParticleUpdater {
         particle_phase: &mut ParticlePhase,
         particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
+        enable_cdf: bool,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
 
@@ -84,6 +85,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         particle_phase: &mut ParticlePhase,
         particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
+        enable_cdf: bool,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
 
@@ -205,7 +207,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
          * TODO: refactor to its own function.
          */
         let mut penalty_force = Vector::zeros();
-        if ENABLE_CDF {
+        if enable_cdf {
             if penetration {
                 // Todo: figure out why this does nothing
                 // let collider = colliders

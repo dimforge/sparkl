@@ -3,7 +3,6 @@ use crate::{
         atomic::{AtomicAdd, AtomicInt},
         DefaultParticleUpdater, ParticleUpdater,
     },
-    gpu_cdf::ENABLE_CDF,
     gpu_grid::{GpuGrid, GpuGridProjectionStatus},
     BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
     NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
@@ -266,6 +265,7 @@ pub unsafe fn g2p2g(
     next_grid: GpuGrid,
     damage_model: DamageModel,
     halo: bool,
+    enable_cdf: bool,
 ) {
     g2p2g_generic(
         dt,
@@ -283,6 +283,7 @@ pub unsafe fn g2p2g(
         damage_model,
         halo,
         DefaultParticleUpdater { models },
+        enable_cdf,
     )
 }
 
@@ -303,6 +304,7 @@ pub unsafe fn g2p2g_generic(
     damage_model: DamageModel,
     halo: bool,
     particle_updater: impl ParticleUpdater,
+    enable_cdf: bool,
 ) {
     let shared_nodes = shared_array![GridGatherData; NUM_SHARED_CELLS];
 
@@ -355,6 +357,7 @@ pub unsafe fn g2p2g_generic(
             next_grid.cell_width(),
             damage_model,
             particle_updater,
+            enable_cdf,
         );
 
         *particles_status.add(particle_id as usize) = particle_status_i;
@@ -384,6 +387,7 @@ unsafe fn particle_g2p2g(
     cell_width: Real,
     _damage_model: DamageModel,
     particle_updater: impl ParticleUpdater,
+    enable_cdf: bool,
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
         colliders,
@@ -393,6 +397,7 @@ unsafe fn particle_g2p2g(
         shared_nodes,
         cell_width,
         &particle_updater,
+        enable_cdf,
     );
 
     if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
@@ -407,6 +412,7 @@ unsafe fn particle_g2p2g(
         particle_phase,
         particle_cdf,
         &mut interpolated_data,
+        enable_cdf,
     ) {
         p2g(
             dt,
@@ -422,6 +428,7 @@ unsafe fn particle_g2p2g(
             artificial_pressure_force,
             stress,
             force,
+            enable_cdf,
         )
     }
 }
@@ -434,6 +441,7 @@ unsafe fn g2p(
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     particle_updater: &impl ParticleUpdater,
+    enable_cdf: bool,
 ) -> (InterpolatedParticleData, Vector<Real>) {
     let inv_d = Kernel::inv_d(cell_width);
     let shared_kernel = SharedKernel::new(particle_pos, shared_nodes, cell_width);
@@ -460,7 +468,7 @@ unsafe fn g2p(
     *particle_cdf = new_particle_cdf;
 
     for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        let velocity = if node.cdf.is_compatible(particle_cdf) || !ENABLE_CDF {
+        let velocity = if node.cdf.is_compatible(particle_cdf) || !enable_cdf {
             node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
@@ -491,7 +499,7 @@ unsafe fn g2p(
     }
 
     // Todo: can be removed after switching to CDF
-    if !ENABLE_CDF {
+    if !enable_cdf {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
         let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
         let dpt = shared_kernel.ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;
@@ -530,6 +538,7 @@ unsafe fn p2g(
     artificial_pressure_force: Vector<Real>,
     stress: Matrix<Real>,
     force: Vector<Real>,
+    enable_cdf: bool,
 ) {
     let tid = thread::thread_idx_x();
     let inv_d = Kernel::inv_d(cell_width);
@@ -558,7 +567,7 @@ unsafe fn p2g(
         // on shared memory).
 
         // only update compatible particles
-        if node.cdf.is_compatible(particle_cdf) || !ENABLE_CDF {
+        if node.cdf.is_compatible(particle_cdf) || !enable_cdf {
             loop {
                 let old = node.lock.shared_atomic_exch_acq(tid);
                 if old == FREE {

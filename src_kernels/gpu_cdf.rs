@@ -6,8 +6,6 @@ use sparkl_core::prelude::{CdfColor, ParticleCdf};
 const FREE: u32 = 0;
 const LOCKED: u32 = 1;
 
-pub const ENABLE_CDF: bool = true;
-
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
