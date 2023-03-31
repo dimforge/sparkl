@@ -460,7 +460,7 @@ unsafe fn g2p(
     *particle_cdf = new_particle_cdf;
 
     for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
-        let velocity = if node.cdf.is_compatible(particle_cdf) {
+        let velocity = if node.cdf.is_compatible(particle_cdf) || !ENABLE_CDF {
             node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
@@ -474,6 +474,7 @@ unsafe fn g2p(
         interpolated_data.velocity += weight * velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * velocity * dpt.transpose();
         interpolated_data.velocity_gradient_det += weight * velocity.dot(&dpt) * inv_d;
+        // Todo: consider compatibility for the psi velocity
         interpolated_data.psi_pos_momentum += weight * node.psi_velocity;
 
         // TODO: should this artificial pressure thing be part of another crate instead of the
@@ -489,7 +490,7 @@ unsafe fn g2p(
         }
     }
 
-    // Todo: do we still require this after the CDF update?
+    // Todo: can be removed after switching to CDF
     if !ENABLE_CDF {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
         let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
@@ -557,7 +558,7 @@ unsafe fn p2g(
         // on shared memory).
 
         // only update compatible particles
-        if node.cdf.is_compatible(particle_cdf) {
+        if node.cdf.is_compatible(particle_cdf) || !ENABLE_CDF {
             loop {
                 let old = node.lock.shared_atomic_exch_acq(tid);
                 if old == FREE {

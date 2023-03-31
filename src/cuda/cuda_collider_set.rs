@@ -11,7 +11,7 @@ use cust::{
     error::CudaResult,
     memory::{DeviceBuffer, DevicePointer},
 };
-use kernels::{GpuColliderShape, NewGpuColliderSet};
+use kernels::{GpuColliderShape, NewGpuColliderSet, ENABLE_CDF};
 use parry::{
     math::{Point, Real},
     shape::{CudaHeightField, CudaTriMesh},
@@ -49,7 +49,7 @@ impl Default for CudaColliderOptions {
             penalty_stiffness: 0.0,
             flip_interior: false,
             grid_boundary_handling: BoundaryHandling::Friction,
-            boundary_condition: BoundaryCondition::Friction(0.5),
+            boundary_condition: BoundaryCondition::Friction(1.0),
         }
     }
 }
@@ -81,7 +81,7 @@ impl CudaColliderSet {
 
             let collider_index = handle.into_raw_parts().0;
 
-            if true {
+            if ENABLE_CDF {
                 // CDF
                 let index_range = generate_collider_mesh(collider, &mut vertices, &mut indices);
 

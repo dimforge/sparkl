@@ -45,6 +45,8 @@ impl NodeCdf {
             // between the distances to the different colliders, thus we update the tag for each
             // affine particle. This assumes that the node lies on the same side of all triangles
             // belonging to the same collider. This might not be true for geometry with sharp edges.
+            // Todo: fix this by presorting the rigid particles per node and update them on the same
+            // thread
             self.color.update_tag(collider_index, signed_distance);
 
             // only update the tag information if the new distance is smaller than the old one

@@ -4,6 +4,7 @@ use crate::cuda::{
 };
 use crate::dynamics::solver::SolverParameters;
 use crate::kernels::cuda::G2P2G_THREADS;
+use crate::kernels::ENABLE_CDF;
 use crate::kernels::{GpuTimestepLength, NUM_CELL_PER_BLOCK};
 use crate::math::{Real, Vector};
 use cust::context::CurrentContext;
@@ -415,14 +416,15 @@ impl CudaMpmPipeline {
                     let block_size = (3, 3); // Todo: does not work, figure out why
                     #[cfg(feature = "dim3")]
                     let block_size = (3, 3, 3);
+                    if ENABLE_CDF {
+                        launch!(
+                            module.update_cdf<<<particle_count, block_size, 0, stream>>>(
+                                context.grid.next_device_elements(),
+                                context.colliders.as_device(),
 
-                    launch!(
-                        module.update_cdf<<<particle_count, block_size, 0, stream>>>(
-                            context.grid.next_device_elements(),
-                            context.colliders.as_device(),
-
-                        )
-                    )?;
+                            )
+                        )?;
+                    }
 
                     events[i].update_cdf.stop(stream)?;
                 }

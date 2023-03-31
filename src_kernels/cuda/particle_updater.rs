@@ -199,6 +199,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         }
 
         let penetration = particle_cdf.color.1 != 0;
+        let penetration = false;
         /*
          * Particle projection.
          * TODO: refactor to its own function.
@@ -212,7 +213,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
                 //     .unwrap();
                 //
                 // let penalty_stiffness = collider.penalty_stiffness;
-                let penalty_stiffness = 10.0;
+                let penalty_stiffness = 1.0e7;
                 penalty_force =
                     penalty_stiffness * particle_cdf.distance.abs() * particle_cdf.normal;
             }

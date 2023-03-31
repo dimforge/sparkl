@@ -28,10 +28,10 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     let quad_size = 5.0_f32;
-    let a = Point::new(-quad_size, 0.0, 0.0);
+    let a = Point::new(0.0, 0.0, 0.0);
     let b = Point::new(quad_size, 0.0, 0.0);
     let c = Point::new(quad_size, quad_size, 0.0);
-    let d = Point::new(-quad_size, quad_size, 0.0);
+    let d = Point::new(0.0, quad_size, 0.0);
 
     colliders.insert(
         ColliderBuilder::heightfield(
@@ -40,18 +40,19 @@ pub fn init_world(testbed: &mut Testbed) {
         )
         .build(),
     );
-    colliders.insert(ColliderBuilder::triangle(a, b, c).build());
-    colliders.insert(ColliderBuilder::triangle(a, c, d).build());
-    colliders.insert(
-        ColliderBuilder::triangle(a, b, c)
-            .rotation(vector![0.0, std::f32::consts::PI / 2.0, 0.0])
-            .build(),
-    );
-    colliders.insert(
-        ColliderBuilder::triangle(a, c, d)
-            .rotation(vector![0.0, std::f32::consts::PI / 2.0, 0.0])
-            .build(),
-    );
+
+    for i in 0..4 {
+        colliders.insert(
+            ColliderBuilder::triangle(a, b, c)
+                .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
+                .build(),
+        );
+        colliders.insert(
+            ColliderBuilder::triangle(a, c, d)
+                .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
+                .build(),
+        );
+    }
 
     const NU: Real = 0.2;
     const E: Real = 1.0e7;
