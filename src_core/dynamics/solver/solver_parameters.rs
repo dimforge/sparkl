@@ -36,20 +36,25 @@ pub enum BoundaryCondition {
 
 impl BoundaryCondition {
     pub fn project(&self, velocity: Vector<Real>, normal: Vector<Real>) -> Vector<Real> {
-        let normal_velocity = velocity.dot(&normal);
-        let tangential_velocity = velocity - normal_velocity * normal;
+        let normal_velocity_norm = velocity.dot(&normal);
+        let tangential_velocity = velocity - normal_velocity_norm * normal;
 
         match self {
             Self::Stick => na::zero(),
             Self::Slip => tangential_velocity,
             Self::Friction(coefficient) => {
-                if normal_velocity > 0.0 {
+                if normal_velocity_norm > 0.0 {
                     velocity
                 } else {
-                    let tangent = tangential_velocity
-                        .try_normalize(1.0e-10)
-                        .unwrap_or(na::zero());
-                    (tangential_velocity.norm() + coefficient * normal_velocity).max(0.0) * tangent
+                    let tangential_velocity_norm = tangential_velocity.norm();
+
+                    if tangential_velocity_norm > 1.0e-10 {
+                        let tangent = tangential_velocity / tangential_velocity_norm;
+                        (tangential_velocity_norm + coefficient * normal_velocity_norm).max(0.0)
+                            * tangent
+                    } else {
+                        na::zero()
+                    }
                 }
             }
         }

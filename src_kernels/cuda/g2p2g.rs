@@ -390,6 +390,7 @@ unsafe fn particle_g2p2g(
     enable_cdf: bool,
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
+        dt,
         colliders,
         particle_status,
         particle_pos,
@@ -434,6 +435,7 @@ unsafe fn particle_g2p2g(
 }
 
 unsafe fn g2p(
+    dt: Real,
     colliders: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
@@ -476,8 +478,14 @@ unsafe fn g2p(
                 .get(node.cdf.closest_collider_index as usize)
                 .unwrap();
 
+            // do we need this and how do we set this properly
+            let correction = 0.0;
+
             collider.project_particle_velocity(node.velocity, particle_cdf.normal)
+                + dt * correction * particle_cdf.normal
         };
+
+        //  node.velocity = velocity;
 
         interpolated_data.velocity += weight * velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * velocity * dpt.transpose();

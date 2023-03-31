@@ -201,7 +201,8 @@ impl ParticleUpdater for DefaultParticleUpdater {
         }
 
         let penetration = particle_cdf.color.1 != 0;
-        let penetration = false;
+        let penetration = false; // disabled for now, until the drift and explosions are fixed
+
         /*
          * Particle projection.
          * TODO: refactor to its own function.
