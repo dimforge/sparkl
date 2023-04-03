@@ -1,5 +1,5 @@
 use crate::{
-    gpu_collider::{GpuCollider, GpuColliderSet},
+    gpu_collider::GpuColliderSet,
     gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus},
     BlockHeaderId,
 };
@@ -14,8 +14,7 @@ use sparkl_core::{
 pub unsafe fn grid_update(
     dt: Real,
     mut next_grid: GpuGrid,
-    colliders_ptr: *const GpuCollider,
-    num_colliders: usize,
+    collider_set: GpuColliderSet,
     gravity: Vector<Real>,
     enable_cdf: bool,
 ) {
@@ -44,10 +43,7 @@ pub unsafe fn grid_update(
             update_cell(dt, cell, gravity);
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
-            let collider_set = GpuColliderSet {
-                ptr: colliders_ptr,
-                len: num_colliders,
-            };
+
             update_single_cell(
                 dt,
                 cell,
@@ -65,7 +61,7 @@ fn update_single_cell(
     cell: &mut GpuGridNode,
     cell_pos: Point<Real>,
     cell_width: Real,
-    colliders: &GpuColliderSet,
+    collider_set: &GpuColliderSet,
     gravity: Vector<Real>,
 ) {
     let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
@@ -73,7 +69,7 @@ fn update_single_cell(
 
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;
-        for (i, collider) in colliders.iter().enumerate() {
+        for (i, collider) in collider_set.iter().enumerate() {
             if collider.grid_boundary_handling == BoundaryHandling::None {
                 continue;
             }
@@ -108,7 +104,7 @@ fn update_single_cell(
         GpuGridProjectionStatus::Inside(collider_id)
         | GpuGridProjectionStatus::Outside(collider_id) => {
             let is_inside = matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
-            let collider = colliders.get(collider_id).unwrap();
+            let collider = collider_set.collider(collider_id as u32);
 
             match collider.grid_boundary_handling {
                 BoundaryHandling::Stick => {

@@ -423,7 +423,7 @@ impl CudaMpmPipeline {
                         launch!(
                             module.update_cdf<<<particle_count, block_size, 0, stream>>>(
                                 context.grid.next_device_elements(),
-                                context.colliders.as_device(),
+                                context.colliders.device_elements(),
 
                             )
                         )?;
@@ -578,13 +578,11 @@ impl CudaMpmPipeline {
 
                     events[i].grid_update.start(stream)?;
 
-                    let (coll_ptr, coll_len) = context.colliders.device_elements();
                     launch!(
                         module.grid_update<<<num_active_blocks, blk_threads, 0, stream>>>(
                             timestep_length,
                             context.grid.next_device_elements(),
-                            coll_ptr,
-                            coll_len,
+                            context.colliders.device_elements(),
                             *gravity,
                             self.enable_cdf
                         )

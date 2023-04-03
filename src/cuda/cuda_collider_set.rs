@@ -1,17 +1,13 @@
-use crate::cuda::generate_rigid_particles::generate_collider_mesh;
 use crate::{
     core::{
         prelude::{BoundaryCondition, BoundaryHandling},
         rigid_particles::RigidParticle,
     },
-    cuda::generate_rigid_particles::generate_rigid_particles,
+    cuda::generate_rigid_particles::{generate_collider_mesh, generate_rigid_particles},
     kernels::GpuCollider,
 };
-use cust::{
-    error::CudaResult,
-    memory::{DeviceBuffer, DevicePointer},
-};
-use kernels::{GpuColliderShape, NewGpuColliderSet};
+use cust::{error::CudaResult, memory::DeviceBuffer};
+use kernels::{GpuColliderSet, GpuColliderShape};
 use parry::{
     math::{Point, Real},
     shape::{CudaHeightField, CudaTriMesh},
@@ -186,16 +182,10 @@ impl CudaColliderSet {
         })
     }
 
-    pub fn device_elements(&mut self) -> (DevicePointer<GpuCollider>, usize) {
-        (
-            self.collider_buffer.as_device_ptr(),
-            self.gpu_colliders.len(),
-        )
-    }
-
-    pub fn as_device(&mut self) -> NewGpuColliderSet {
-        NewGpuColliderSet {
+    pub fn device_elements(&mut self) -> GpuColliderSet {
+        GpuColliderSet {
             collider_ptr: self.collider_buffer.as_device_ptr(),
+            collider_count: self.gpu_colliders.len() as u32,
             rigid_particle_ptr: self.rigid_particles_buffer.as_device_ptr(),
             vertex_ptr: self.vertex_buffer.as_device_ptr(),
             index_ptr: self.index_buffer.as_device_ptr(),

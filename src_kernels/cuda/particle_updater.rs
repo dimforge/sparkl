@@ -26,7 +26,7 @@ pub trait ParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        colliders: &GpuColliderSet,
+        collider_set: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -76,7 +76,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        colliders: &GpuColliderSet,
+        collider_set: &GpuColliderSet,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -211,9 +211,8 @@ impl ParticleUpdater for DefaultParticleUpdater {
         if enable_cdf {
             if penetration {
                 // Todo: figure out why this does nothing
-                // let collider = colliders
-                //     .get(particle_cdf.closest_collider_index as usize)
-                //     .unwrap();
+                // let collider = collider_set
+                //     .collider(particle_cdf.closest_collider_index);
                 //
                 // let penalty_stiffness = collider.penalty_stiffness;
                 let penalty_stiffness = 1.0e7;

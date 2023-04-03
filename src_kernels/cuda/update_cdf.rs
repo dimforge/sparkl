@@ -1,11 +1,11 @@
-use crate::{GpuGrid, NewGpuColliderSet};
+use crate::{GpuColliderSet, GpuGrid};
 use cuda_std::{thread, *};
 use na::vector;
 use parry::shape::Triangle;
 use sparkl_core::math::{Point, Real};
 
 #[kernel]
-pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: NewGpuColliderSet) {
+pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
     let cell_width = next_grid.cell_width();
 
     #[cfg(feature = "dim2")]

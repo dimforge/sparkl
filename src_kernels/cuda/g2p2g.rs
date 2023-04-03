@@ -4,8 +4,8 @@ use crate::{
         DefaultParticleUpdater, ParticleUpdater,
     },
     gpu_grid::{GpuGrid, GpuGridProjectionStatus},
-    BlockVirtualId, GpuCollider, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS,
-    NBH_SHIFTS_SHARED, NUM_CELL_PER_BLOCK,
+    BlockVirtualId, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS, NBH_SHIFTS_SHARED,
+    NUM_CELL_PER_BLOCK,
 };
 use cuda_std::{kernel, shared_array, thread};
 use na::{matrix, vector, ComplexField};
@@ -251,8 +251,7 @@ impl InterpolatedParticleData {
 #[kernel]
 pub unsafe fn g2p2g(
     dt: Real,
-    colliders_ptr: *const GpuCollider,
-    num_colliders: usize,
+    collider_set: GpuColliderSet,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -269,8 +268,7 @@ pub unsafe fn g2p2g(
 ) {
     g2p2g_generic(
         dt,
-        colliders_ptr,
-        num_colliders,
+        &collider_set,
         particles_status,
         particles_pos,
         particles_vel,
@@ -290,8 +288,7 @@ pub unsafe fn g2p2g(
 // This MUST be called with a block size equal to G2P2G_THREADS
 pub unsafe fn g2p2g_generic(
     dt: Real,
-    colliders_ptr: *const GpuCollider,
-    num_colliders: usize,
+    collider_set: &GpuColliderSet,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -315,11 +312,6 @@ pub unsafe fn g2p2g_generic(
         next_grid.dispatch_halo_block_to_active_block
     } else {
         next_grid.dispatch_block_to_active_block
-    };
-
-    let collider_set = GpuColliderSet {
-        ptr: colliders_ptr,
-        len: num_colliders,
     };
 
     let dispatch_block_to_active_block = *dispatch2active.as_ptr().add(bid as usize);
@@ -436,7 +428,7 @@ unsafe fn particle_g2p2g(
 
 unsafe fn g2p(
     dt: Real,
-    colliders: &GpuColliderSet,
+    collider_set: &GpuColliderSet,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_cdf: &mut ParticleCdf,
@@ -474,9 +466,7 @@ unsafe fn g2p(
             node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
-            let collider = colliders
-                .get(node.cdf.closest_collider_index as usize)
-                .unwrap();
+            let collider = collider_set.collider(node.cdf.closest_collider_index);
 
             // do we need this and how do we set this properly
             let correction = 0.0;

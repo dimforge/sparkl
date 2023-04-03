@@ -238,14 +238,15 @@ impl GpuCollider {
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct NewGpuColliderSet {
+pub struct GpuColliderSet {
     pub collider_ptr: DevicePointer<GpuCollider>,
+    pub collider_count: u32,
     pub rigid_particle_ptr: DevicePointer<RigidParticle>,
     pub vertex_ptr: DevicePointer<Point<Real>>,
     pub index_ptr: DevicePointer<u32>,
 }
 
-impl NewGpuColliderSet {
+impl GpuColliderSet {
     pub fn collider(&self, i: u32) -> &GpuCollider {
         unsafe { &*self.collider_ptr.as_ptr().add(i as usize) }
     }
@@ -267,26 +268,11 @@ impl NewGpuColliderSet {
             Triangle { a, b, c }
         }
     }
-}
-
-pub struct GpuColliderSet {
-    pub ptr: *const GpuCollider,
-    pub len: usize,
-}
-
-impl GpuColliderSet {
-    pub fn get(&self, i: usize) -> Option<&GpuCollider> {
-        if i >= self.len {
-            None
-        } else {
-            unsafe { Some(&*self.ptr.add(i)) }
-        }
-    }
 
     pub fn iter(&self) -> GpuColliderIter {
         GpuColliderIter {
-            ptr: self.ptr,
-            len: self.len,
+            ptr: self.collider_ptr.as_ptr(),
+            len: self.collider_count as usize,
             _marker: PhantomData,
         }
     }
