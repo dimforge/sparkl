@@ -253,6 +253,18 @@ impl GpuColliderSet {
         unsafe { &*self.rigid_particle_ptr.as_ptr().add(i as usize) }
     }
 
+    pub fn segment(&self, i: u32, collider_position: &Isometry<Real>) -> Segment {
+        unsafe {
+            let index_a = *self.index_ptr.as_ptr().add(i as usize);
+            let index_b = *self.index_ptr.as_ptr().add(i as usize + 1);
+
+            let a = collider_position * *self.vertex_ptr.as_ptr().add(index_a as usize);
+            let b = collider_position * *self.vertex_ptr.as_ptr().add(index_b as usize);
+
+            Segment { a, b }
+        }
+    }
+
     pub fn triangle(&self, i: u32, collider_position: &Isometry<Real>) -> Triangle {
         unsafe {
             let index_a = *self.index_ptr.as_ptr().add(i as usize);

@@ -1,7 +1,7 @@
-use crate::{GpuColliderSet, GpuGrid};
+use crate::{GpuColliderSet, GpuGrid, GpuGridNode};
 use cuda_std::{thread, *};
 use na::vector;
-use parry::shape::Triangle;
+use parry::shape::{Segment, Triangle};
 use sparkl_core::math::{Point, Real};
 
 #[kernel]
@@ -23,25 +23,53 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
     let collider_index = particle.collider_index;
     let collider = collider_set.collider(collider_index);
 
-    let triangle_index = particle.triangle_index;
-    let triangle = collider_set.triangle(triangle_index, &collider.position);
-
     let particle_position = collider.position * particle.position;
-    let normal = triangle.normal().unwrap().into_inner();
 
     let node_coord = particle_position.map(|e| (e / cell_width).round() as i64 - 1) + shift;
     let node_position = node_coord.cast::<Real>() * cell_width;
 
     if let Some(node_id) = next_grid.get_node_id_at_coord(node_coord) {
         if let Some(node) = next_grid.get_node_mut(node_id) {
-            let signed_distance = (node_position - particle_position).dot(&normal);
-            let projected_point = node_position - signed_distance * normal;
+            #[cfg(feature = "dim2")]
+            {
+                let segment_index = particle.segment_or_triangle_index;
+                let segment = collider_set.segment(segment_index, &collider.position);
+                let normal = segment.normal().unwrap().into_inner();
 
-            if inside_triangle(projected_point, triangle) {
-                node.cdf.update(signed_distance, collider_index);
+                let signed_distance = (node_position - particle_position).dot(&normal);
+                let projected_point = node_position - signed_distance * normal;
+
+                if inside_segment(projected_point, segment) {
+                    node.cdf.update(signed_distance, collider_index);
+                }
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let triangle_index = particle.segment_or_triangle_index;
+                let triangle = collider_set.triangle(triangle_index, &collider.position);
+                let normal = triangle.normal().unwrap().into_inner();
+
+                let signed_distance = (node_position - particle_position).dot(&normal);
+                let projected_point = node_position - signed_distance * normal;
+
+                if inside_triangle(projected_point, triangle) {
+                    node.cdf.update(signed_distance, collider_index);
+                }
             }
         }
     }
+}
+
+fn inside_segment(point: Point<Real>, segment: Segment) -> bool {
+    let ap = point - segment.a;
+    let ab = segment.b - segment.a;
+
+    let d_ap = ap.dot(&ap);
+    let d_ab = ab.dot(&ab);
+
+    let alpha = d_ap / d_ab;
+
+    0.0 <= alpha && alpha <= 1.0
 }
 
 fn inside_triangle(point: Point<Real>, triangle: Triangle) -> bool {

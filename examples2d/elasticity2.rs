@@ -26,20 +26,22 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut colliders = ColliderSet::new();
     let ground_height = cell_width * 10.0;
     let ground_shift = cell_width * 40.0;
+
+    let size = 10.0;
     colliders.insert(
-        ColliderBuilder::cuboid(1000.0, ground_height)
+        ColliderBuilder::cuboid(size * 2.0, ground_height)
             .translation(vector![0.0, ground_shift - ground_height])
             // .rotation(0.1)
             .build(),
     );
 
     colliders.insert(
-        ColliderBuilder::cuboid(ground_height, 1000.0)
+        ColliderBuilder::cuboid(ground_height, size)
             .translation(vector![ground_shift - ground_height, 0.0])
             .build(),
     );
     colliders.insert(
-        ColliderBuilder::cuboid(ground_height, 1000.0)
+        ColliderBuilder::cuboid(ground_height, size)
             .translation(vector![
                 ground_shift - ground_height + ground_shift * 8.0,
                 0.0

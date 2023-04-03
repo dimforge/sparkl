@@ -121,7 +121,13 @@ const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
     },
     ParticleMode::DensityRatio { max: 10.0 },
     ParticleMode::Position {
+        #[cfg(feature = "dim2")]
+        mins: vector![-10.0, -10.0],
+        #[cfg(feature = "dim2")]
+        maxs: vector![10.0, 10.0],
+        #[cfg(feature = "dim3")]
         mins: vector![-10.0, -10.0, -10.0],
+        #[cfg(feature = "dim3")]
         maxs: vector![10.0, 10.0, 10.0],
     },
     ParticleMode::Blocks { block_len: 8 },
@@ -192,8 +198,8 @@ pub(crate) fn visualization_ui(mode: &mut VisualizationMode, ui_context: &EguiCo
                         ui.add(egui::Slider::new(max, 0.0..=10.0).text("Max Density Ratio"));
                     }
                     ParticleMode::VelocityColor { min, max } => {
-                        ui.add(egui::Slider::new(min, 0.0..=10.0).text("Min Velocity"));
-                        ui.add(egui::Slider::new(max, 0.0..=10.0).text("Max Velocity"));
+                        ui.add(egui::Slider::new(min, 0.0..=40.0).text("Min Velocity"));
+                        ui.add(egui::Slider::new(max, 0.0..=40.0).text("Max Velocity"));
                     }
                     ParticleMode::Position { mins, maxs } => {
                         let mut min = mins.min();

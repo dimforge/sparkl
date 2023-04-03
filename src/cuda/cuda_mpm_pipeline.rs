@@ -416,10 +416,10 @@ impl CudaMpmPipeline {
                     let particle_count = context.colliders.rigid_particles.len() as u32;
 
                     #[cfg(feature = "dim2")]
-                    let block_size = (3, 3); // Todo: does not work, figure out why
+                    let block_size = (3, 3);
                     #[cfg(feature = "dim3")]
                     let block_size = (3, 3, 3);
-                    if self.enable_cdf {
+                    if self.enable_cdf && particle_count > 0 {
                         launch!(
                             module.update_cdf<<<particle_count, block_size, 0, stream>>>(
                                 context.grid.next_device_elements(),

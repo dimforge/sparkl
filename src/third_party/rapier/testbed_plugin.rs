@@ -890,7 +890,11 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     let block_color = COLORS[color_index];
 
                     for i in 0..NUM_CELL_PER_BLOCK as usize {
+                        #[cfg(feature = "dim2")]
+                        let shift = vector![(i / 4) % 4, i % 4];
+                        #[cfg(feature = "dim3")]
                         let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
+
                         let node_physical = block_physical.node_id_unchecked(shift);
 
                         if let Some(node) = grid_data.node_buffer.get(node_physical.0 as usize) {

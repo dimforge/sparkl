@@ -3,7 +3,7 @@ use crate::core::{
     rigid_particles::RigidParticle,
 };
 use na::distance;
-use parry::shape::{Triangle, TypedShape};
+use parry::shape::{Segment, Triangle, TypedShape};
 use rapier::geometry::Collider;
 use std::ops::Range;
 
@@ -17,32 +17,38 @@ pub fn generate_collider_mesh(
     let vertex_offset = vertices.len() as u32;
     let first_index = indices.len();
 
+    #[cfg(feature = "dim2")]
+    match collider.shape().as_typed_shape() {
+        TypedShape::Cuboid(cuboid) => {
+            let a = Point::new(-cuboid.half_extents.x, -cuboid.half_extents.y);
+            let b = Point::new(cuboid.half_extents.x, -cuboid.half_extents.y);
+            let c = Point::new(cuboid.half_extents.x, cuboid.half_extents.y);
+            let d = Point::new(-cuboid.half_extents.x, cuboid.half_extents.y);
+
+            vertices.extend([a, b, c, d]);
+            indices.extend(
+                [0, 1, 1, 2, 2, 3, 3, 0]
+                    .iter()
+                    .map(|index| index + vertex_offset),
+            )
+        }
+        TypedShape::HeightField(heightfield) => {
+            extend_polyline(heightfield.to_polyline(), vertices, indices);
+        }
+        _ => {}
+    }
+
+    #[cfg(feature = "dim3")]
     match collider.shape().as_typed_shape() {
         TypedShape::Triangle(&triangle) => {
             vertices.extend(triangle.vertices());
             indices.extend([0, 1, 2].iter().map(|index| index + vertex_offset));
         }
         TypedShape::Cuboid(cuboid) => {
-            #[cfg(feature = "dim2")]
-            {
-                let a = Point::new(-cuboid.half_extents.x, -cuboid.half_extents.y);
-                let b = Point::new(cuboid.half_extents.x, -cuboid.half_extents.y);
-                let c = Point::new(cuboid.half_extents.x, cuboid.half_extents.y);
-                let d = Point::new(-cuboid.half_extents.x, cuboid.half_extents.y);
-
-                vertices.extend([a, b, c, d]);
-                indices.extend([0, 1, 2, 0, 2, 3].iter().map(|index| index + vertex_offset));
-            }
-            #[cfg(feature = "dim3")]
-            {
-                extend_trimesh(cuboid.to_trimesh(), vertices, indices);
-            }
+            extend_trimesh(cuboid.to_trimesh(), vertices, indices);
         }
         TypedShape::Capsule(capsule) => {
-            #[cfg(feature = "dim3")]
-            {
-                extend_trimesh(capsule.to_trimesh(20, 10), vertices, indices);
-            }
+            extend_trimesh(capsule.to_trimesh(20, 10), vertices, indices);
         }
         TypedShape::TriMesh(trimesh) => {
             vertices.extend(trimesh.vertices());
@@ -55,10 +61,7 @@ pub fn generate_collider_mesh(
             );
         }
         TypedShape::HeightField(heightfield) => {
-            #[cfg(feature = "dim3")]
-            {
-                extend_trimesh(heightfield.to_trimesh(), vertices, indices);
-            }
+            extend_trimesh(heightfield.to_trimesh(), vertices, indices);
         }
         _ => {}
     }
@@ -66,6 +69,17 @@ pub fn generate_collider_mesh(
     let last_index = indices.len();
 
     first_index..last_index
+}
+
+fn extend_polyline(
+    (points, segments): (Vec<Point<Real>>, Vec<[u32; 2]>),
+    vertices: &mut Vec<Point<Real>>,
+    indices: &mut Vec<u32>,
+) {
+    let vertex_offset = vertices.len() as u32;
+
+    vertices.extend(points);
+    indices.extend(segments.iter().flatten().map(|index| index + vertex_offset));
 }
 
 fn extend_trimesh(
@@ -94,6 +108,25 @@ pub fn generate_rigid_particles(
 ) {
     // let cell_width = cell_width / 2.0;
 
+    #[cfg(feature = "dim2")]
+    for (segment_index, segment) in indices[index_range.clone()].chunks(2).enumerate() {
+        let segment = Segment {
+            a: vertices[segment[0] as usize],
+            b: vertices[segment[1] as usize],
+        };
+
+        let segment_index = (2 * segment_index + index_range.start) as u32;
+
+        cover_segment(
+            segment,
+            rigid_particles,
+            cell_width,
+            collider_index,
+            segment_index,
+        );
+    }
+
+    #[cfg(feature = "dim3")]
     for (triangle_index, triangle) in indices[index_range.clone()].chunks(3).enumerate() {
         let triangle = Triangle {
             a: vertices[triangle[0] as usize],
@@ -110,6 +143,33 @@ pub fn generate_rigid_particles(
             collider_index,
             triangle_index,
         );
+    }
+}
+
+fn cover_segment(
+    segment: Segment,
+    rigid_particles: &mut Vec<RigidParticle>,
+    cell_width: Real,
+    collider_index: u32,
+    segment_index: u32,
+) {
+    let base = segment.b - segment.a;
+    let base_length = base.norm();
+    let base_dir = base / base_length;
+
+    // Calculate the step increment on the base.
+    let base_step_count = (base_length / cell_width).ceil();
+    let base_step = base_dir * base_length / base_step_count;
+
+    for i in 0..=base_step_count as u32 {
+        let particle_position = segment.a + (i as f32) * base_step;
+
+        rigid_particles.push(RigidParticle {
+            position: particle_position,
+            collider_index,
+            segment_or_triangle_index: segment_index,
+            color_index: 0,
+        });
     }
 }
 
@@ -180,7 +240,7 @@ fn cover_triangle(
             rigid_particles.push(RigidParticle {
                 position: particle_position,
                 collider_index,
-                triangle_index,
+                segment_or_triangle_index: triangle_index,
                 color_index: j as u32,
             });
         }
