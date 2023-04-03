@@ -471,7 +471,7 @@ unsafe fn g2p(
             // do we need this and how do we set this properly
             let correction = 0.0;
 
-            collider.project_particle_velocity(node.velocity, particle_cdf.normal)
+            collider.project_particle_velocity(particle_vel.vector, particle_cdf.normal)
                 + dt * correction * particle_cdf.normal
         };
 
