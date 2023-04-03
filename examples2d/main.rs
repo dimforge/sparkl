@@ -3,6 +3,7 @@
 extern crate nalgebra as na;
 
 mod basic2;
+mod cutting_sand2;
 mod elasticity2;
 mod fluids2;
 mod helper;
@@ -56,6 +57,7 @@ pub fn main() {
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Basic", basic2::init_world),
+        ("Cutting sand", cutting_sand2::init_world),
         ("Elasticity", elasticity2::init_world),
         ("Fluids", fluids2::init_world),
     ];

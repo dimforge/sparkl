@@ -19,6 +19,10 @@ pub fn generate_collider_mesh(
 
     #[cfg(feature = "dim2")]
     match collider.shape().as_typed_shape() {
+        TypedShape::Segment(segment) => {
+            vertices.extend([segment.a, segment.b]);
+            indices.extend([0, 1].iter().map(|index| index + vertex_offset));
+        }
         TypedShape::Cuboid(cuboid) => {
             let a = Point::new(-cuboid.half_extents.x, -cuboid.half_extents.y);
             let b = Point::new(cuboid.half_extents.x, -cuboid.half_extents.y);
@@ -30,7 +34,17 @@ pub fn generate_collider_mesh(
                 [0, 1, 1, 2, 2, 3, 3, 0]
                     .iter()
                     .map(|index| index + vertex_offset),
-            )
+            );
+        }
+        TypedShape::Polyline(polyline) => {
+            vertices.extend(polyline.vertices());
+            indices.extend(
+                polyline
+                    .indices()
+                    .iter()
+                    .flatten()
+                    .map(|index| index + vertex_offset),
+            );
         }
         TypedShape::HeightField(heightfield) => {
             extend_polyline(heightfield.to_polyline(), vertices, indices);
@@ -52,13 +66,7 @@ pub fn generate_collider_mesh(
         }
         TypedShape::TriMesh(trimesh) => {
             vertices.extend(trimesh.vertices());
-            indices.extend(
-                trimesh
-                    .indices()
-                    .iter()
-                    .flatten()
-                    .map(|&index| index + vertex_offset),
-            );
+            indices.extend(trimesh.flat_indices().map(|index| index + vertex_offset));
         }
         TypedShape::HeightField(heightfield) => {
             extend_trimesh(heightfield.to_trimesh(), vertices, indices);
