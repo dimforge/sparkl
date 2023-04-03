@@ -387,6 +387,7 @@ unsafe fn particle_g2p2g(
         particle_status,
         particle_pos,
         particle_cdf,
+        particle_vel,
         shared_nodes,
         cell_width,
         &particle_updater,
@@ -432,6 +433,7 @@ unsafe fn g2p(
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_cdf: &mut ParticleCdf,
+    particle_vel: &ParticleVelocity,
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     particle_updater: &impl ParticleUpdater,
@@ -474,8 +476,6 @@ unsafe fn g2p(
             collider.project_particle_velocity(particle_vel.vector, particle_cdf.normal)
                 + dt * correction * particle_cdf.normal
         };
-
-        //  node.velocity = velocity;
 
         interpolated_data.velocity += weight * velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * velocity * dpt.transpose();
@@ -551,6 +551,7 @@ unsafe fn p2g(
     } else {
         0.0
     };
+
     let psi_pos_momentum = psi_mass * particle_phase.psi_pos;
 
     for (node, weight, dpt) in shared_kernel.iterate_kernel(cell_width) {
@@ -659,8 +660,8 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             let shared_node = &mut *shared_nodes.add(id_in_shared as usize);
 
             if let Some(global_node) = curr_grid.get_node(id_in_global) {
-                shared_node.velocity = global_node.momentum_velocity;
-                shared_node.psi_velocity = global_node.psi_momentum_velocity;
+                shared_node.velocity = global_node.momentum_or_velocity;
+                shared_node.psi_velocity = global_node.psi_momentum_or_velocity;
                 shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
                 shared_node.projection_status = global_node.projection_status;
                 shared_node.prev_mass = global_node.prev_mass;
@@ -785,10 +786,10 @@ unsafe fn transfer_shared_blocks_to_grid(
         if let Some(global_node) = next_grid.get_node_mut(id_in_global) {
             global_node.mass.global_red_add(shared_node.mass);
             global_node
-                .momentum_velocity
+                .momentum_or_velocity
                 .global_red_add(shared_node.momentum);
             global_node
-                .psi_momentum_velocity
+                .psi_momentum_or_velocity
                 .global_red_add(shared_node.psi_momentum);
             global_node.psi_mass.global_red_add(shared_node.psi_mass);
         }

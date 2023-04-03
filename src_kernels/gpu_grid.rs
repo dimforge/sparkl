@@ -462,10 +462,10 @@ pub struct GpuGridNode {
     pub mass: Real,
     // That’s where the particles transfer their momentum.
     // This is then replaced by the velocity during the grid update.
-    pub momentum_velocity: Vector<Real>,
+    pub momentum_or_velocity: Vector<Real>,
     // That’s where the particles transfer their momentum.
     // This is then replaced by the velocity during the grid update.
-    pub psi_momentum_velocity: Real,
+    pub psi_momentum_or_velocity: Real,
     pub psi_mass: Real,
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
@@ -477,8 +477,8 @@ impl Default for GpuGridNode {
     fn default() -> Self {
         Self {
             mass: 0.0,
-            momentum_velocity: Vector::zeros(),
-            psi_momentum_velocity: 0.0,
+            momentum_or_velocity: Vector::zeros(),
+            psi_momentum_or_velocity: 0.0,
             psi_mass: 0.0,
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,

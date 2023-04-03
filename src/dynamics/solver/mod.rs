@@ -1,7 +1,7 @@
 pub use self::mls_solver::{MlsSolver, RigidWorld};
 pub use self::mpm_hooks::MpmHooks;
 pub use crate::core::dynamics::solver::{
-    BoundaryHandling, DamageModel, SimulationDofs, SolverParameters,
+    BoundaryCondition, DamageModel, SimulationDofs, SolverParameters,
 };
 
 mod eigenerosion;

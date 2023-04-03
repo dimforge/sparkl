@@ -485,8 +485,8 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             let shared_node = &mut *shared_nodes.add(id_in_shared as usize);
 
             if let Some(global_node) = curr_grid.get_node(id_in_global) {
-                shared_node.velocity = global_node.momentum_velocity;
-                shared_node.psi_velocity = global_node.psi_momentum_velocity;
+                shared_node.velocity = global_node.momentum_or_velocity;
+                shared_node.psi_velocity = global_node.psi_momentum_or_velocity;
             } else {
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
@@ -599,10 +599,10 @@ unsafe fn transfer_shared_blocks_to_grid(
         if let Some(global_node) = next_grid.get_node_mut(id_in_global) {
             global_node.mass.global_red_add(shared_node.mass);
             global_node
-                .momentum_velocity
+                .momentum_or_velocity
                 .global_red_add(shared_node.momentum);
             global_node
-                .psi_momentum_velocity
+                .psi_momentum_or_velocity
                 .global_red_add(shared_node.psi_momentum);
             global_node.psi_mass.global_red_add(shared_node.psi_mass);
         }

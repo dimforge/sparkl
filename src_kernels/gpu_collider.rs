@@ -8,10 +8,7 @@ use parry::{
     utils::CudaArrayPointer1,
 };
 use sparkl_core::prelude::Vector;
-use sparkl_core::{
-    dynamics::solver::{BoundaryCondition, BoundaryHandling},
-    rigid_particles::RigidParticle,
-};
+use sparkl_core::{dynamics::solver::BoundaryCondition, rigid_particles::RigidParticle};
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
@@ -215,7 +212,6 @@ pub struct GpuCollider {
     pub position: Isometry<Real>,
     pub friction: Real,
     pub penalty_stiffness: Real,
-    pub grid_boundary_handling: BoundaryHandling,
     pub boundary_condition: BoundaryCondition,
 }
 
@@ -229,9 +225,11 @@ impl GpuCollider {
         let collider_velocity: Vector<Real> = na::zero();
 
         collider_velocity
-            + self
-                .boundary_condition
-                .project(particle_velocity - collider_velocity, normal)
+            + self.boundary_condition.project(
+                particle_velocity - collider_velocity,
+                normal,
+                self.friction,
+            )
     }
 }
 

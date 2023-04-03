@@ -104,7 +104,7 @@ pub fn init_world(testbed: &mut Testbed) {
     plugin.hooks = Box::new(BoundaryConditions {
         origins: l_panel_origins,
     });
-    plugin.solver_params.boundary_handling = BoundaryHandling::Stick;
+    plugin.solver_params.boundary_condition = BoundaryCondition::Stick;
     plugin.solver_params.damage_model = DamageModel::Eigenerosion;
     testbed.add_plugin(plugin);
     testbed.set_world(

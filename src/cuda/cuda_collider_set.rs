@@ -1,8 +1,5 @@
 use crate::{
-    core::{
-        prelude::{BoundaryCondition, BoundaryHandling},
-        rigid_particles::RigidParticle,
-    },
+    core::{prelude::BoundaryCondition, rigid_particles::RigidParticle},
     cuda::generate_rigid_particles::{generate_collider_mesh, generate_rigid_particles},
     kernels::GpuCollider,
 };
@@ -34,7 +31,6 @@ pub struct CudaColliderOptions {
     pub handle: ColliderHandle,
     pub penalty_stiffness: f32,
     pub flip_interior: bool,
-    pub grid_boundary_handling: BoundaryHandling,
     pub boundary_condition: BoundaryCondition,
 }
 
@@ -44,8 +40,7 @@ impl Default for CudaColliderOptions {
             handle: ColliderHandle::invalid(),
             penalty_stiffness: 0.0,
             flip_interior: false,
-            grid_boundary_handling: BoundaryHandling::Friction,
-            boundary_condition: BoundaryCondition::Friction(1.0),
+            boundary_condition: BoundaryCondition::Friction,
         }
     }
 }
@@ -94,7 +89,6 @@ impl CudaColliderSet {
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
                     boundary_condition: options.boundary_condition,
                 };
                 gpu_colliders.push(gpu_collider);
@@ -110,7 +104,6 @@ impl CudaColliderSet {
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
                     boundary_condition: options.boundary_condition,
                 };
                 heightfield_buffers.push(cuda_heightfield);
@@ -126,7 +119,6 @@ impl CudaColliderSet {
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
                     boundary_condition: options.boundary_condition,
                 };
                 trimesh_buffers.push(cuda_trimesh);
@@ -141,7 +133,6 @@ impl CudaColliderSet {
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
                     boundary_condition: options.boundary_condition,
                 };
                 polyline_buffers.push(cuda_vertices);
@@ -152,7 +143,6 @@ impl CudaColliderSet {
                     position: *collider.position(),
                     friction: collider.friction(),
                     penalty_stiffness: options.penalty_stiffness,
-                    grid_boundary_handling: options.grid_boundary_handling,
                     boundary_condition: options.boundary_condition,
                 };
                 gpu_colliders.push(gpu_collider);

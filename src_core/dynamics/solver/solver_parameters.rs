@@ -17,32 +17,29 @@ bitflags::bitflags! {
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(C)]
-pub enum BoundaryHandling {
+pub enum BoundaryCondition {
     Stick,
+    Slip,
     Friction,
     FrictionZUp, // A bit of a hack until we have a more generic solution
     None,
 }
 
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq)]
-#[repr(C)]
-pub enum BoundaryCondition {
-    Stick,
-    Slip,
-    Friction(Real),
-}
-
 impl BoundaryCondition {
-    pub fn project(&self, velocity: Vector<Real>, normal: Vector<Real>) -> Vector<Real> {
+    pub fn project(
+        &self,
+        velocity: Vector<Real>,
+        normal: Vector<Real>,
+        friction_coeff: Real,
+    ) -> Vector<Real> {
         let normal_velocity_norm = velocity.dot(&normal);
         let tangential_velocity = velocity - normal_velocity_norm * normal;
 
         match self {
             Self::Stick => na::zero(),
             Self::Slip => tangential_velocity,
-            Self::Friction(coefficient) => {
+            Self::FrictionZUp | Self::Friction => {
+                // FIXME: handle FrictionZUp properly
                 if normal_velocity_norm > 0.0 {
                     velocity
                 } else {
@@ -50,13 +47,14 @@ impl BoundaryCondition {
 
                     if tangential_velocity_norm > 1.0e-10 {
                         let tangent = tangential_velocity / tangential_velocity_norm;
-                        (tangential_velocity_norm + coefficient * normal_velocity_norm).max(0.0)
+                        (tangential_velocity_norm + friction_coeff * normal_velocity_norm).max(0.0)
                             * tangent
                     } else {
                         na::zero()
                     }
                 }
             }
+            Self::None => velocity,
         }
     }
 }
@@ -80,7 +78,7 @@ pub struct SolverParameters {
     pub dt: Real,
     pub max_substep_dt: Real,
     pub max_num_substeps: u32,
-    pub boundary_handling: BoundaryHandling,
+    pub boundary_condition: BoundaryCondition,
     pub damage_model: DamageModel,
     pub force_fluids_volume_recomputation: bool,
     pub enable_boundary_particle_projection: bool,
@@ -94,7 +92,7 @@ impl Default for SolverParameters {
             dt: 1.0 / 60.0,
             max_substep_dt: Real::MAX,
             max_num_substeps: 1000,
-            boundary_handling: BoundaryHandling::Friction,
+            boundary_condition: BoundaryCondition::Friction,
             damage_model: DamageModel::None,
             force_fluids_volume_recomputation: false,
             enable_boundary_particle_projection: false,
