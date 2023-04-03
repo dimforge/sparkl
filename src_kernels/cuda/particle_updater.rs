@@ -201,7 +201,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         }
 
         let penetration = particle_cdf.color.1 != 0;
-        let penetration = false; // disabled for now, until the drift and explosions are fixed
+        let penetration = true; // disabled for now, until the drift and explosions are fixed
 
         /*
          * Particle projection.
@@ -215,7 +215,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
                 //     .collider(particle_cdf.closest_collider_index);
                 //
                 // let penalty_stiffness = collider.penalty_stiffness;
-                let penalty_stiffness = 1.0e7;
+                let penalty_stiffness = 1.0e3;
                 penalty_force =
                     penalty_stiffness * particle_cdf.distance.abs() * particle_cdf.normal;
             }
