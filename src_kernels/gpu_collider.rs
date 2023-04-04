@@ -242,6 +242,7 @@ pub struct GpuColliderSet {
     pub rigid_particle_ptr: DevicePointer<RigidParticle>,
     pub vertex_ptr: DevicePointer<Point<Real>>,
     pub index_ptr: DevicePointer<u32>,
+    pub penalty_stiffness: Real,
 }
 
 impl GpuColliderSet {

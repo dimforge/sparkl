@@ -1025,6 +1025,16 @@ impl TestbedPlugin for MpmTestbedPlugin {
             egui::Window::new("MPM Params").show(ui_context.ctx(), |ui| {
                 ui.checkbox(&mut self.run_on_gpu, "Run on GPU");
                 ui.checkbox(&mut self.cuda_pipeline.enable_cdf, "Enable CDF");
+
+                if let Some(data) = &mut self.cuda_data.get_mut(0) {
+                    if let Some(collider_set) = &mut data.colliders {
+                        ui.add(
+                            egui::Slider::new(&mut collider_set.penalty_stiffness, 0.0..=1.0e6)
+                                .text("Penalty Stiffness"),
+                        );
+                    }
+                }
+
                 if let Some(timing) = &self.last_timing {
                     ui.collapsing("Pipeline Timings", |ui| {
                         ui.label(format!("dt: {:.2}ms", timing.dt * 1000.0));

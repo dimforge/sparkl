@@ -15,6 +15,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet};
 pub struct CudaColliderSet {
     pub gpu_colliders: Vec<GpuCollider>,
     pub rigid_particles: Vec<RigidParticle>,
+    pub penalty_stiffness: Real,
     collider_buffer: DeviceBuffer<GpuCollider>,
     rigid_particles_buffer: DeviceBuffer<RigidParticle>,
     vertex_buffer: DeviceBuffer<Point<Real>>,
@@ -162,6 +163,7 @@ impl CudaColliderSet {
         Ok(Self {
             gpu_colliders,
             rigid_particles,
+            penalty_stiffness: 0.0,
             collider_buffer,
             rigid_particles_buffer,
             vertex_buffer,
@@ -179,6 +181,7 @@ impl CudaColliderSet {
             rigid_particle_ptr: self.rigid_particles_buffer.as_device_ptr(),
             vertex_ptr: self.vertex_buffer.as_device_ptr(),
             index_ptr: self.index_buffer.as_device_ptr(),
+            penalty_stiffness: self.penalty_stiffness,
         }
     }
 }
