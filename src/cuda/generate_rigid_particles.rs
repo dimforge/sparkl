@@ -66,7 +66,12 @@ pub fn generate_collider_mesh(
         }
         TypedShape::TriMesh(trimesh) => {
             vertices.extend(trimesh.vertices());
-            indices.extend(trimesh.flat_indices().map(|index| index + vertex_offset));
+            indices.extend(
+                trimesh
+                    .flat_indices()
+                    .iter()
+                    .map(|index| index + vertex_offset),
+            );
         }
         TypedShape::HeightField(heightfield) => {
             extend_trimesh(heightfield.to_trimesh(), vertices, indices);
