@@ -21,31 +21,34 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut particles = ParticleSet::new();
     let mut models = ParticleModelSet::new();
+    let mut colliders = ColliderSet::new();
 
     let cell_width = 0.05;
-    let mut colliders = ColliderSet::new();
-    let ground_height = cell_width * 10.0;
-    let ground_shift = cell_width * 40.0;
+    let particle_rad = cell_width / 4.0;
 
-    let size = 10.0;
+    let height_offset = 0.5;
+    let width = 6.0;
+    let height = 3.0;
+    let thickness = 0.1;
+
     colliders.insert(
-        ColliderBuilder::cuboid(size * 2.0, ground_height)
-            .translation(vector![0.0, ground_shift - ground_height])
-            // .rotation(0.1)
+        ColliderBuilder::cuboid(width, thickness)
+            .translation(vector![width, -thickness])
+            .friction(0.0)
             .build(),
     );
 
     colliders.insert(
-        ColliderBuilder::cuboid(ground_height, size)
-            .translation(vector![ground_shift - ground_height, 0.0])
+        ColliderBuilder::cuboid(thickness, height)
+            .translation(vector![-thickness, height - 2.0 * thickness])
+            .friction(0.0)
             .build(),
     );
+
     colliders.insert(
-        ColliderBuilder::cuboid(ground_height, size)
-            .translation(vector![
-                ground_shift - ground_height + ground_shift * 8.0,
-                0.0
-            ])
+        ColliderBuilder::cuboid(thickness, height)
+            .translation(vector![2.0 * width + thickness, height - 2.0 * thickness])
+            .friction(0.0)
             .build(),
     );
 
@@ -66,7 +69,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let shape = SharedShape::convex_decomposition(&star, &indices);
 
     let mut rng = oorandom::Rand32::new(42);
-    let mut gen = || ground_shift + cell_width * 40.0 * (rng.rand_u32() % 5 + 1) as Real;
+    let mut gen = || height_offset + cell_width * 40.0 * (rng.rand_u32() % 5 + 1) as Real;
     let model = ParticleModel::with_plasticity(
         CorotatedLinearElasticity::new(E, NU),
         RankinePlasticity::new(E, NU, 1.0e2, 5.0),
@@ -78,7 +81,7 @@ pub fn init_world(testbed: &mut Testbed) {
             &*shape.0,
             Isometry::translation(gen(), gen()),
             model,
-            cell_width / 4.0,
+            particle_rad,
             2.0,
             false,
         );
