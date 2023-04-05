@@ -1,5 +1,5 @@
 use crate::cuda::{
-    CudaColliderSet, CudaParticleKernelsLauncher, CudaParticleModelSet, CudaParticleSet,
+    CudaParticleKernelsLauncher, CudaParticleModelSet, CudaParticleSet, CudaRigidWorld,
     CudaSparseGrid, DefaultCudaParticleKernelsLauncher,
 };
 use crate::dynamics::solver::SolverParameters;
@@ -183,7 +183,7 @@ pub struct SingleGpuMpmContext<'a> {
     pub stream: &'a mut Stream,
     pub halo_stream: &'a mut Stream,
     pub module: &'a mut Module,
-    pub colliders: &'a mut CudaColliderSet,
+    pub rigid_world: &'a mut CudaRigidWorld,
     pub particles: &'a mut CudaParticleSet,
     pub models: &'a mut CudaParticleModelSet,
     pub grid: &'a mut CudaSparseGrid,
@@ -413,7 +413,7 @@ impl CudaMpmPipeline {
 
                     events[i].update_cdf.start(stream)?;
 
-                    let particle_count = context.colliders.rigid_particles.len() as u32;
+                    let particle_count = context.rigid_world.rigid_particles.len() as u32;
 
                     #[cfg(feature = "dim2")]
                     let block_size = (3, 3);
@@ -423,7 +423,7 @@ impl CudaMpmPipeline {
                         launch!(
                             module.update_cdf<<<particle_count, block_size, 0, stream>>>(
                                 context.grid.next_device_elements(),
-                                context.colliders.device_elements(),
+                                context.rigid_world.device_elements(),
 
                             )
                         )?;
@@ -582,7 +582,7 @@ impl CudaMpmPipeline {
                         module.grid_update<<<num_active_blocks, blk_threads, 0, stream>>>(
                             timestep_length,
                             context.grid.next_device_elements(),
-                            context.colliders.device_elements(),
+                            context.rigid_world.device_elements(),
                             *gravity,
                             self.enable_cdf
                         )

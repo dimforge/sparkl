@@ -1,4 +1,4 @@
-use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
+use crate::{cuda::InterpolatedParticleData, GpuParticleModel, GpuRigidWorld};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
     ActiveTimestepBounds, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
@@ -26,7 +26,7 @@ pub trait ParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        collider_set: &GpuColliderSet,
+        rigid_world: &GpuRigidWorld,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -76,7 +76,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        collider_set: &GpuColliderSet,
+        rigid_world: &GpuRigidWorld,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
@@ -210,7 +210,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         let mut penalty_force = Vector::zeros();
         if enable_cdf {
             if penetration {
-                let penalty_stiffness = collider_set.penalty_stiffness;
+                let penalty_stiffness = rigid_world.penalty_stiffness;
                 penalty_force =
                     penalty_stiffness * particle_cdf.distance.abs() * particle_cdf.normal;
             }

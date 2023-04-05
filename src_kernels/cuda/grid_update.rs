@@ -1,6 +1,6 @@
 use crate::{
-    gpu_collider::GpuColliderSet,
     gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus},
+    gpu_rigid_world::GpuRigidWorld,
     BlockHeaderId,
 };
 use cuda_std::{thread, *};
@@ -14,7 +14,7 @@ use sparkl_core::{
 pub unsafe fn grid_update(
     dt: Real,
     mut next_grid: GpuGrid,
-    collider_set: GpuColliderSet,
+    rigid_world: GpuRigidWorld,
     gravity: Vector<Real>,
     enable_cdf: bool,
 ) {
@@ -44,14 +44,7 @@ pub unsafe fn grid_update(
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
 
-            update_single_cell(
-                dt,
-                cell,
-                cell_pos.into(),
-                cell_width,
-                &collider_set,
-                gravity,
-            );
+            update_single_cell(dt, cell, cell_pos.into(), cell_width, &rigid_world, gravity);
         }
     }
 }
@@ -61,7 +54,7 @@ fn update_single_cell(
     cell: &mut GpuGridNode,
     cell_pos: Point<Real>,
     cell_width: Real,
-    collider_set: &GpuColliderSet,
+    rigid_world: &GpuRigidWorld,
     gravity: Vector<Real>,
 ) {
     let mut cell_velocity = (cell.momentum_or_velocity + cell.mass * gravity * dt)
@@ -69,7 +62,7 @@ fn update_single_cell(
 
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;
-        for (i, collider) in collider_set.iter().enumerate() {
+        for (i, collider) in rigid_world.iter_colliders().enumerate() {
             if collider.boundary_condition == BoundaryCondition::None {
                 continue;
             }
@@ -104,7 +97,7 @@ fn update_single_cell(
         GpuGridProjectionStatus::Inside(collider_id)
         | GpuGridProjectionStatus::Outside(collider_id) => {
             let is_inside = matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
-            let collider = collider_set.collider(collider_id as u32);
+            let collider = rigid_world.collider(collider_id as u32);
 
             match collider.boundary_condition {
                 BoundaryCondition::Stick => {

@@ -1,11 +1,11 @@
-use crate::{GpuColliderSet, GpuGrid, GpuGridNode};
+use crate::{GpuGrid, GpuRigidWorld};
 use cuda_std::{thread, *};
 use na::vector;
 use parry::shape::{Segment, Triangle};
 use sparkl_core::math::{Point, Real};
 
 #[kernel]
-pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
+pub unsafe fn update_cdf(mut next_grid: GpuGrid, rigid_world: GpuRigidWorld) {
     let cell_width = next_grid.cell_width();
 
     #[cfg(feature = "dim2")]
@@ -18,13 +18,19 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
     ];
 
     let particle_index = thread::block_idx_x();
-    let particle = collider_set.rigid_particle(particle_index);
+    let particle = rigid_world.rigid_particle(particle_index);
 
     let collider_index = particle.collider_index;
-    let collider = collider_set.collider(collider_index);
+    let collider = rigid_world.collider(collider_index);
 
-    let particle_position = collider.position * particle.position;
+    let position = if let Some(rigid_body_index) = collider.rigid_body_index {
+        let rigid_body = rigid_world.rigid_body(rigid_body_index);
+        rigid_body.position * collider.position
+    } else {
+        collider.position
+    };
 
+    let particle_position = position * particle.position;
     let node_coord = particle_position.map(|e| (e / cell_width).round() as i64 - 1) + shift;
     let node_position = node_coord.cast::<Real>() * cell_width;
 
@@ -33,7 +39,7 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
             #[cfg(feature = "dim2")]
             {
                 let segment_index = particle.segment_or_triangle_index;
-                let segment = collider_set.segment(segment_index, &collider.position);
+                let segment = rigid_world.segment(segment_index, &position);
                 let normal = segment.normal().unwrap().into_inner();
 
                 let signed_distance = (node_position - particle_position).dot(&normal);
@@ -46,7 +52,7 @@ pub unsafe fn update_cdf(mut next_grid: GpuGrid, collider_set: GpuColliderSet) {
             #[cfg(feature = "dim3")]
             {
                 let triangle_index = particle.segment_or_triangle_index;
-                let triangle = collider_set.triangle(triangle_index, &collider.position);
+                let triangle = rigid_world.triangle(triangle_index, &position);
                 let normal = triangle.normal().unwrap().into_inner();
 
                 let signed_distance = (node_position - particle_position).dot(&normal);

@@ -22,20 +22,20 @@ extern crate sparkl3d_core as sparkl_core;
 extern crate nalgebra as na;
 
 pub use self::gpu_cdf::*;
-pub use self::gpu_collider::*;
 pub use self::gpu_constitutive_model::*;
 pub use self::gpu_grid::*;
 pub use self::gpu_particle_model::*;
 pub use self::gpu_plastic_model::*;
+pub use self::gpu_rigid_world::*;
 pub use self::gpu_timestep::*;
 
 pub mod cuda;
 mod gpu_cdf;
-mod gpu_collider;
 mod gpu_constitutive_model;
 mod gpu_grid;
 mod gpu_particle_model;
 mod gpu_plastic_model;
+mod gpu_rigid_world;
 mod gpu_timestep;
 
 pub use parry::utils::DevicePointer;

@@ -1,7 +1,5 @@
-use crate::core::{
-    math::{Point, Real},
-    rigid_particles::RigidParticle,
-};
+use crate::core::math::{Point, Real};
+use kernels::RigidParticle;
 use na::distance;
 use parry::shape::{Segment, Triangle, TypedShape};
 use rapier::geometry::Collider;

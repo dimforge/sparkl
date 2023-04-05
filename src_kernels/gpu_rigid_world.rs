@@ -7,8 +7,10 @@ use parry::{
     shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation, Triangle},
     utils::CudaArrayPointer1,
 };
+use sparkl_core::dynamics::solver::BoundaryCondition;
 use sparkl_core::prelude::Vector;
-use sparkl_core::{dynamics::solver::BoundaryCondition, rigid_particles::RigidParticle};
+
+// Todo: remove this after transitioning to CDF
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
@@ -205,6 +207,17 @@ pub fn polyline_project_point(
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
+#[derive(Copy, Clone, Default)]
+#[repr(C)]
+pub struct GpuRigidBody {
+    pub position: Isometry<Real>,
+    pub linvel: Vector<Real>,
+    pub angvel: Vector<Real>,
+    pub mass: Real,
+    pub center_of_mass: Point<Real>,
+}
+
+#[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GpuCollider {
@@ -213,39 +226,37 @@ pub struct GpuCollider {
     pub friction: Real,
     pub penalty_stiffness: Real,
     pub boundary_condition: BoundaryCondition,
+    pub rigid_body_index: Option<u32>,
 }
 
-impl GpuCollider {
-    pub fn project_particle_velocity(
-        &self,
-        // _particle_position: Point<Real>,
-        particle_velocity: Vector<Real>,
-        normal: Vector<Real>,
-    ) -> Vector<Real> {
-        let collider_velocity: Vector<Real> = na::zero();
-
-        collider_velocity
-            + self.boundary_condition.project(
-                particle_velocity - collider_velocity,
-                normal,
-                self.friction,
-            )
-    }
+#[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
+#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct RigidParticle {
+    pub position: Point<Real>,
+    pub collider_index: u32, // Todo: consider packing both indices into a single u32
+    pub segment_or_triangle_index: u32,
+    pub color_index: u32, // Debug only, can be removed
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GpuColliderSet {
+pub struct GpuRigidWorld {
+    pub penalty_stiffness: Real,
+    pub rigid_body_ptr: DevicePointer<GpuRigidBody>,
     pub collider_ptr: DevicePointer<GpuCollider>,
-    pub collider_count: u32,
     pub rigid_particle_ptr: DevicePointer<RigidParticle>,
     pub vertex_ptr: DevicePointer<Point<Real>>,
     pub index_ptr: DevicePointer<u32>,
-    pub penalty_stiffness: Real,
+    pub collider_count: u32,
 }
 
-impl GpuColliderSet {
+impl GpuRigidWorld {
+    pub fn rigid_body(&self, i: u32) -> &GpuRigidBody {
+        unsafe { &*self.rigid_body_ptr.as_ptr().add(i as usize) }
+    }
+
     pub fn collider(&self, i: u32) -> &GpuCollider {
         unsafe { &*self.collider_ptr.as_ptr().add(i as usize) }
     }
@@ -254,33 +265,67 @@ impl GpuColliderSet {
         unsafe { &*self.rigid_particle_ptr.as_ptr().add(i as usize) }
     }
 
-    pub fn segment(&self, i: u32, collider_position: &Isometry<Real>) -> Segment {
+    pub fn segment(&self, i: u32, position: &Isometry<Real>) -> Segment {
         unsafe {
             let index_a = *self.index_ptr.as_ptr().add(i as usize);
             let index_b = *self.index_ptr.as_ptr().add(i as usize + 1);
 
-            let a = collider_position * *self.vertex_ptr.as_ptr().add(index_a as usize);
-            let b = collider_position * *self.vertex_ptr.as_ptr().add(index_b as usize);
+            let a = position * *self.vertex_ptr.as_ptr().add(index_a as usize);
+            let b = position * *self.vertex_ptr.as_ptr().add(index_b as usize);
 
             Segment { a, b }
         }
     }
 
-    pub fn triangle(&self, i: u32, collider_position: &Isometry<Real>) -> Triangle {
+    pub fn triangle(&self, i: u32, position: &Isometry<Real>) -> Triangle {
         unsafe {
             let index_a = *self.index_ptr.as_ptr().add(i as usize);
             let index_b = *self.index_ptr.as_ptr().add(i as usize + 1);
             let index_c = *self.index_ptr.as_ptr().add(i as usize + 2);
 
-            let a = collider_position * *self.vertex_ptr.as_ptr().add(index_a as usize);
-            let b = collider_position * *self.vertex_ptr.as_ptr().add(index_b as usize);
-            let c = collider_position * *self.vertex_ptr.as_ptr().add(index_c as usize);
+            let a = position * *self.vertex_ptr.as_ptr().add(index_a as usize);
+            let b = position * *self.vertex_ptr.as_ptr().add(index_b as usize);
+            let c = position * *self.vertex_ptr.as_ptr().add(index_c as usize);
 
             Triangle { a, b, c }
         }
     }
 
-    pub fn iter(&self) -> GpuColliderIter {
+    pub fn project_particle_velocity(
+        &self,
+        particle_position: Point<Real>,
+        particle_velocity: Vector<Real>,
+        surface_normal: Vector<Real>,
+        closest_collider_index: u32,
+    ) -> Vector<Real> {
+        // do we need this and how do we set this properly?
+        let correction = 0.0;
+        let dt = 0.0;
+        let correction_velocity = dt * correction * surface_normal;
+
+        let collider = self.collider(closest_collider_index);
+
+        let collider_velocity = if let Some(rigid_body_index) = collider.rigid_body_index {
+            let rigid_body = self.rigid_body(rigid_body_index);
+
+            rigid_body.linvel
+                + rigid_body
+                    .angvel
+                    .cross(&(particle_position - rigid_body.center_of_mass))
+        } else {
+            na::zero()
+        };
+
+        let projected_velocity = collider.boundary_condition.project(
+            particle_velocity - collider_velocity,
+            surface_normal,
+            collider.friction,
+        );
+
+        collider_velocity + projected_velocity + correction_velocity
+    }
+
+    pub fn iter_colliders(&self) -> GpuColliderIter {
         GpuColliderIter {
             ptr: self.collider_ptr.as_ptr(),
             len: self.collider_count as usize,

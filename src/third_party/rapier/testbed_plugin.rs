@@ -25,8 +25,8 @@ use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlu
 use {
     crate::{
         cuda::{
-            CudaColliderSet, CudaMpmPipeline, CudaMpmPipelineParameters, CudaParticleModelSet,
-            CudaParticleSet, CudaSparseGrid, CudaTimestepTimings, SharedCudaVec,
+            CudaMpmPipeline, CudaMpmPipelineParameters, CudaParticleModelSet, CudaParticleSet,
+            CudaRigidWorld, CudaSparseGrid, CudaTimestepTimings, SharedCudaVec,
             SingleGpuMpmContext,
         },
         kernels::GpuTimestepLength,
@@ -53,7 +53,7 @@ struct CudaData {
     stream: cust::prelude::Stream,
     halo_stream: cust::prelude::Stream,
     module: cust::prelude::Module,
-    colliders: Option<CudaColliderSet>,
+    rigid_world: Option<CudaRigidWorld>,
     particles: CudaParticleSet,
     models: CudaParticleModelSet,
     grid: CudaSparseGrid,
@@ -205,9 +205,9 @@ impl MpmTestbedPlugin {
                     )
                     .ok()?;
                     let grid = CudaSparseGrid::new(cell_width).ok()?;
-                    let colliders = boundaries.as_ref().and_then(|b| {
-                        CudaColliderSet::from_collider_set(b, vec![], cell_width).ok()
-                    });
+                    let colliders = boundaries
+                        .as_ref()
+                        .and_then(|b| CudaRigidWorld::new(None, b, vec![], cell_width).ok());
                     let timestep_length = DeviceBox::new(&GpuTimestepLength::default()).ok()?;
                     let module = CudaMpmPipeline::load_module().unwrap();
 
@@ -219,7 +219,7 @@ impl MpmTestbedPlugin {
                         particles,
                         models,
                         grid,
-                        colliders,
+                        rigid_world: colliders,
                         timestep_length,
                         particle_attribute_data,
                     })
@@ -414,7 +414,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         #[cfg(feature = "cuda")]
         {
             for cuda_data in &mut self.cuda_data {
-                cuda_data.colliders = None;
+                cuda_data.rigid_world = None;
             }
         }
     }
@@ -443,16 +443,22 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
         #[cfg(feature = "cuda")]
         for cuda_data in &mut self.cuda_data {
-            if cuda_data.colliders.is_none() {
-                log::info!("Initializing {} cuda colliders.", physics.colliders.len());
-                cuda_data.make_current().unwrap();
-                cuda_data.colliders = Some(
-                    CudaColliderSet::from_collider_set(
+            cuda_data.make_current().unwrap();
+
+            if let Some(rigid_world) = &mut cuda_data.rigid_world {
+                rigid_world
+                    .update_rigid_bodies(&physics.bodies)
+                    .expect("Failed to update the CUDA rigid world.");
+            } else {
+                log::info!("Initializing the CUDA rigid world.");
+                cuda_data.rigid_world = Some(
+                    CudaRigidWorld::new(
+                        Some(&physics.bodies),
                         &physics.colliders,
                         vec![],
                         self.sp_grid.cell_width(), // Todo: is this the proper way to retrieve cell width?
                     )
-                    .expect("Failed to initialize the CUDA colliders."),
+                    .expect("Failed to initialize the CUDA rigid world."),
                 );
             }
         }
@@ -485,7 +491,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         stream: &mut data.stream,
                         halo_stream: &mut data.halo_stream,
                         module: &mut data.module,
-                        colliders: data.colliders.as_mut().unwrap(),
+                        rigid_world: data.rigid_world.as_mut().unwrap(),
                         particles: &mut data.particles,
                         models: &mut data.models,
                         grid: &mut data.grid,
@@ -514,6 +520,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         &mut contexts,
                     )
                     .expect("CUDA stepping failed");
+
+                // Todo: read back gpu rigid bodies
 
                 /*
                  *
@@ -836,17 +844,25 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
         if mode.show_rigid_particles {
             if let Some(cuda_data) = self.cuda_data.get(0) {
-                if let Some(colliders) = &cuda_data.colliders {
-                    for particle in &colliders.rigid_particles {
+                if let Some(rigid_world) = &cuda_data.rigid_world {
+                    for particle in &rigid_world.rigid_particles {
                         if mode.debug_single_collider
                             && particle.collider_index != mode.collider_index
                         {
                             continue;
                         }
 
-                        let collider = colliders.gpu_colliders[particle.collider_index as usize];
+                        let collider = rigid_world.gpu_colliders[particle.collider_index as usize];
 
-                        let particle_position = collider.position * particle.position;
+                        let position = if let Some(rigid_body_index) = collider.rigid_body_index {
+                            let rigid_body =
+                                rigid_world.gpu_rigid_bodies[rigid_body_index as usize];
+                            rigid_body.position * collider.position
+                        } else {
+                            collider.position
+                        };
+
+                        let particle_position = position * particle.position;
 
                         #[cfg(feature = "dim2")]
                         let pos_z = 0.0;
@@ -1027,9 +1043,9 @@ impl TestbedPlugin for MpmTestbedPlugin {
                 ui.checkbox(&mut self.cuda_pipeline.enable_cdf, "Enable CDF");
 
                 if let Some(data) = &mut self.cuda_data.get_mut(0) {
-                    if let Some(collider_set) = &mut data.colliders {
+                    if let Some(rigid_world) = &mut data.rigid_world {
                         ui.add(
-                            egui::Slider::new(&mut collider_set.penalty_stiffness, 0.0..=1.0e6)
+                            egui::Slider::new(&mut rigid_world.penalty_stiffness, 0.0..=1.0e6)
                                 .text("Penalty Stiffness"),
                         );
                     }

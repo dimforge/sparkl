@@ -82,7 +82,7 @@ impl CudaParticleKernelsLauncher for DefaultCudaParticleKernelsLauncher {
         launch!(
             module.g2p2g<<<blocks, threads, 0, stream>>>(
                 timestep_length,
-                context.colliders.device_elements(),
+                context.rigid_world.device_elements(),
                 context.particles.particle_status.as_device_ptr(),
                 context.particles.particle_pos.as_device_ptr(),
                 context.particles.particle_vel.as_device_ptr(),

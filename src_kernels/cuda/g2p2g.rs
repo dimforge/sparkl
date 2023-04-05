@@ -4,7 +4,7 @@ use crate::{
         DefaultParticleUpdater, ParticleUpdater,
     },
     gpu_grid::{GpuGrid, GpuGridProjectionStatus},
-    BlockVirtualId, GpuColliderSet, GpuParticleModel, NodeCdf, NBH_SHIFTS, NBH_SHIFTS_SHARED,
+    BlockVirtualId, GpuParticleModel, GpuRigidWorld, NodeCdf, NBH_SHIFTS, NBH_SHIFTS_SHARED,
     NUM_CELL_PER_BLOCK,
 };
 use cuda_std::{kernel, shared_array, thread};
@@ -251,7 +251,7 @@ impl InterpolatedParticleData {
 #[kernel]
 pub unsafe fn g2p2g(
     dt: Real,
-    collider_set: GpuColliderSet,
+    rigid_world: GpuRigidWorld,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -268,7 +268,7 @@ pub unsafe fn g2p2g(
 ) {
     g2p2g_generic(
         dt,
-        &collider_set,
+        &rigid_world,
         particles_status,
         particles_pos,
         particles_vel,
@@ -288,7 +288,7 @@ pub unsafe fn g2p2g(
 // This MUST be called with a block size equal to G2P2G_THREADS
 pub unsafe fn g2p2g_generic(
     dt: Real,
-    collider_set: &GpuColliderSet,
+    rigid_world: &GpuRigidWorld,
     particles_status: *mut ParticleStatus,
     particles_pos: *mut ParticlePosition,
     particles_vel: *mut ParticleVelocity,
@@ -338,7 +338,7 @@ pub unsafe fn g2p2g_generic(
         particle_g2p2g(
             dt,
             particle_id,
-            &collider_set,
+            &rigid_world,
             &mut particle_status_i,
             &mut particle_pos_i,
             &mut particle_vel_i,
@@ -368,7 +368,7 @@ pub unsafe fn g2p2g_generic(
 unsafe fn particle_g2p2g(
     dt: Real,
     particle_id: u32,
-    colliders: &GpuColliderSet,
+    rigid_world: &GpuRigidWorld,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_vel: &mut ParticleVelocity,
@@ -383,7 +383,7 @@ unsafe fn particle_g2p2g(
 ) {
     let (mut interpolated_data, artificial_pressure_force) = g2p(
         dt,
-        colliders,
+        rigid_world,
         particle_status,
         particle_pos,
         particle_cdf,
@@ -397,7 +397,7 @@ unsafe fn particle_g2p2g(
     if let Some((stress, force)) = particle_updater.update_particle_and_compute_kirchhoff_stress(
         dt,
         cell_width,
-        colliders,
+        rigid_world,
         particle_id,
         particle_status,
         particle_pos,
@@ -429,7 +429,7 @@ unsafe fn particle_g2p2g(
 
 unsafe fn g2p(
     dt: Real,
-    collider_set: &GpuColliderSet,
+    rigid_world: &GpuRigidWorld,
     particle_status: &mut ParticleStatus,
     particle_pos: &mut ParticlePosition,
     particle_cdf: &mut ParticleCdf,
@@ -468,13 +468,12 @@ unsafe fn g2p(
             node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
-            let collider = collider_set.collider(node.cdf.closest_collider_index);
-
-            // do we need this and how do we set this properly
-            let correction = 0.0;
-
-            collider.project_particle_velocity(particle_vel.vector, particle_cdf.normal)
-                + dt * correction * particle_cdf.normal
+            rigid_world.project_particle_velocity(
+                particle_pos.point,
+                particle_vel.vector,
+                particle_cdf.normal,
+                node.cdf.closest_collider_index,
+            )
         };
 
         interpolated_data.velocity += weight * velocity;
