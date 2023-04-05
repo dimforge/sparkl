@@ -2,13 +2,12 @@ use crate::DevicePointer;
 use core::marker::PhantomData;
 use na::ComplexField;
 use parry::{
-    math::{Isometry, Point, Real},
+    math::{AngVector, Isometry, Point, Real, Vector},
     query::{PointProjection, PointQueryWithLocation},
     shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation, Triangle},
     utils::CudaArrayPointer1,
 };
 use sparkl_core::dynamics::solver::BoundaryCondition;
-use sparkl_core::prelude::Vector;
 
 // Todo: remove this after transitioning to CDF
 
@@ -212,7 +211,7 @@ pub fn polyline_project_point(
 pub struct GpuRigidBody {
     pub position: Isometry<Real>,
     pub linvel: Vector<Real>,
-    pub angvel: Vector<Real>,
+    pub angvel: AngVector<Real>,
     pub mass: Real,
     pub center_of_mass: Point<Real>,
 }
@@ -224,9 +223,9 @@ pub struct GpuCollider {
     pub shape: GpuColliderShape,
     pub position: Isometry<Real>,
     pub friction: Real,
-    pub penalty_stiffness: Real,
     pub boundary_condition: BoundaryCondition,
     pub rigid_body_index: Option<u32>,
+    pub enable_cdf: bool,
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
@@ -308,10 +307,18 @@ impl GpuRigidWorld {
         let collider_velocity = if let Some(rigid_body_index) = collider.rigid_body_index {
             let rigid_body = self.rigid_body(rigid_body_index);
 
-            rigid_body.linvel
-                + rigid_body
-                    .angvel
-                    .cross(&(particle_position - rigid_body.center_of_mass))
+            #[cfg(feature = "dim2")]
+            {
+                rigid_body.linvel
+                    + rigid_body.angvel * (particle_position - rigid_body.center_of_mass)
+            }
+            #[cfg(feature = "dim3")]
+            {
+                rigid_body.linvel
+                    + rigid_body
+                        .angvel
+                        .cross(&(particle_position - rigid_body.center_of_mass))
+            }
         } else {
             na::zero()
         };

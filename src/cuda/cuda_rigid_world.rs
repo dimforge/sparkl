@@ -16,8 +16,8 @@ use std::collections::HashMap;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CudaColliderOptions {
     pub handle: ColliderHandle,
-    pub penalty_stiffness: f32,
     pub flip_interior: bool,
+    pub enable_cdf: bool,
     pub boundary_condition: BoundaryCondition,
 }
 
@@ -25,8 +25,8 @@ impl Default for CudaColliderOptions {
     fn default() -> Self {
         Self {
             handle: ColliderHandle::invalid(),
-            penalty_stiffness: 0.0,
             flip_interior: false,
+            enable_cdf: false,
             boundary_condition: BoundaryCondition::Friction,
         }
     }
@@ -76,7 +76,7 @@ impl CudaRigidWorld {
                 gpu_rigid_bodies.push(GpuRigidBody {
                     position: *rigid_body.position(),
                     linvel: *rigid_body.linvel(),
-                    angvel: *rigid_body.angvel(),
+                    angvel: rigid_body.angvel().clone(),
                     mass: rigid_body.mass(),
                     center_of_mass: *rigid_body.center_of_mass(),
                 });
@@ -90,18 +90,20 @@ impl CudaRigidWorld {
                 .copied()
                 .unwrap_or_else(Default::default);
 
-            let collider_index = handle.into_raw_parts().0;
+            if options.enable_cdf {
+                let collider_index = gpu_colliders.len() as u32;
 
-            let index_range = generate_collider_mesh(collider, &mut vertices, &mut indices);
+                let index_range = generate_collider_mesh(collider, &mut vertices, &mut indices);
 
-            generate_rigid_particles(
-                index_range,
-                &vertices,
-                &indices,
-                &mut rigid_particles,
-                collider_index,
-                cell_width,
-            );
+                generate_rigid_particles(
+                    index_range,
+                    &vertices,
+                    &indices,
+                    &mut rigid_particles,
+                    collider_index,
+                    cell_width,
+                );
+            }
 
             let (rigid_body_index, position) = if let Some(handle) = collider.parent() {
                 let rigid_body_index = rigid_body_map.get(&handle).copied();
@@ -149,9 +151,9 @@ impl CudaRigidWorld {
                 shape,
                 position,
                 friction: collider.friction(),
-                penalty_stiffness: options.penalty_stiffness,
                 boundary_condition: options.boundary_condition,
                 rigid_body_index,
+                enable_cdf: options.enable_cdf,
             });
         }
 
@@ -191,7 +193,7 @@ impl CudaRigidWorld {
                 self.gpu_rigid_bodies[rigid_body_index as usize] = GpuRigidBody {
                     position: *rigid_body.position(),
                     linvel: *rigid_body.linvel(),
-                    angvel: *rigid_body.angvel(),
+                    angvel: rigid_body.angvel().clone(),
                     mass: rigid_body.mass(),
                     center_of_mass: *rigid_body.center_of_mass(),
                 };

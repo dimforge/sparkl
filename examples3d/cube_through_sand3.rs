@@ -2,8 +2,7 @@ use crate::helper;
 use na::{point, vector, DMatrix};
 use rapier3d::prelude::*;
 use rapier_testbed3d::{Testbed, TestbedApp};
-use sparkl3d::prelude::*;
-use sparkl3d::third_party::rapier::MpmTestbedPlugin;
+use sparkl3d::{cuda::CudaColliderOptions, prelude::*, third_party::rapier::MpmTestbedPlugin};
 
 pub fn init_world(testbed: &mut Testbed) {
     let mut models = ParticleModelSet::new();
@@ -89,13 +88,21 @@ pub fn init_world(testbed: &mut Testbed) {
     let block_collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0).density(1.0).build();
 
     let block_body_handle = bodies.insert(block_body);
-    colliders.insert_with_parent(block_collider, block_body_handle, &mut bodies);
+    let block_collider_handle =
+        colliders.insert_with_parent(block_collider, block_body_handle, &mut bodies);
 
-    let plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    let collider_options = vec![CudaColliderOptions {
+        handle: block_collider_handle,
+        enable_cdf: true,
+        ..Default::default()
+    }];
+
+    let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    plugin.collider_options = collider_options;
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    testbed.look_at(point![0.0, 4.0, 50.0], point![0.0, 1.0, 0.0]);
+    testbed.look_at(point![-30.0, 4.0, 0.0], point![0.0, 1.0, 0.0]);
 }
 
 fn main() {

@@ -2,6 +2,7 @@ use crate::helper;
 use na::{point, vector};
 use rapier2d::prelude::*;
 use rapier_testbed2d::{Testbed, TestbedApp};
+use sparkl2d::cuda::CudaColliderOptions;
 use sparkl2d::prelude::*;
 use sparkl2d::third_party::rapier::MpmTestbedPlugin;
 
@@ -26,11 +27,10 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert(
         ColliderBuilder::cuboid(width, thickness)
             .translation(vector![0.0, -thickness])
-            .friction(0.0)
             .build(),
     );
 
-    colliders.insert(
+    let collider_handle = colliders.insert(
         ColliderBuilder::polyline(vec![point![0.0, 0.0], point![0.0, height]], None).build(),
     );
 
@@ -57,9 +57,15 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let bodies = RigidBodySet::new();
 
+    let collider_options = vec![CudaColliderOptions {
+        handle: collider_handle,
+        enable_cdf: true,
+        ..Default::default()
+    }];
+
     let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
     plugin.solver_params.force_fluids_volume_recomputation = true;
-
+    plugin.collider_options = collider_options;
     testbed.add_plugin(plugin);
     testbed.set_world(
         bodies,

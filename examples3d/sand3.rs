@@ -86,10 +86,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    testbed.look_at(
-        Point::new(ground_half_side, 4.0, ground_half_side + 20.0),
-        point![ground_half_side, 1.0, ground_half_side],
-    );
+    testbed.look_at(point![-30.0, 4.0, 0.0], point![0.0, 1.0, 0.0]);
 }
 
 fn main() {

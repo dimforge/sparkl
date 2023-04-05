@@ -496,7 +496,7 @@ unsafe fn g2p(
     }
 
     // Todo: can be removed after switching to CDF
-    if !enable_cdf {
+    if true {
         let shift = NBH_SHIFTS[NBH_SHIFTS.len() - 1];
         let packed_shift = NBH_SHIFTS_SHARED[NBH_SHIFTS_SHARED.len() - 1];
         let dpt = shared_kernel.ref_elt_pos_minus_particle_pos + shift.cast::<Real>() * cell_width;

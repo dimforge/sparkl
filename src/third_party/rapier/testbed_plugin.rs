@@ -1,7 +1,7 @@
 use super::point_cloud_render::ParticleInstanceData;
 use crate::{
     core::dynamics::ParticleData,
-    cuda::HostSparseGridData,
+    cuda::{CudaColliderOptions, HostSparseGridData},
     dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet},
     geometry::SpGrid,
     kernels::NUM_CELL_PER_BLOCK,
@@ -123,6 +123,7 @@ pub struct MpmTestbedPlugin {
     run_on_gpu: bool,
     #[cfg(feature = "cuda")]
     pub last_timing: Option<CudaTimestepTimings>,
+    pub collider_options: Vec<CudaColliderOptions>,
 }
 
 impl MpmTestbedPlugin {
@@ -296,6 +297,7 @@ impl MpmTestbedPlugin {
             run_on_gpu: true,
             #[cfg(feature = "cuda")]
             last_timing: None,
+            collider_options: vec![],
         }
     }
 
@@ -455,7 +457,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     CudaRigidWorld::new(
                         Some(&physics.bodies),
                         &physics.colliders,
-                        vec![],
+                        self.collider_options.clone(),
                         self.sp_grid.cell_width(), // Todo: is this the proper way to retrieve cell width?
                     )
                     .expect("Failed to initialize the CUDA rigid world."),

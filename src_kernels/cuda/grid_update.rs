@@ -38,8 +38,8 @@ pub unsafe fn grid_update(
     let cell_width = next_grid.cell_width();
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
-        // Todo: remove this after the CDF update
-        if enable_cdf {
+        if false {
+            // Todo: use this after the CDF transition
             update_cell(dt, cell, gravity);
         } else {
             let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
@@ -63,7 +63,7 @@ fn update_single_cell(
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;
         for (i, collider) in rigid_world.iter_colliders().enumerate() {
-            if collider.boundary_condition == BoundaryCondition::None {
+            if collider.boundary_condition == BoundaryCondition::None || collider.enable_cdf {
                 continue;
             }
 

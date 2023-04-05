@@ -5,6 +5,7 @@ use rapier3d::prelude::{
     ColliderBuilder, ColliderSet, ImpulseJointSet, MultibodyJointSet, RigidBodySet,
 };
 use rapier_testbed3d::{Testbed, TestbedApp};
+use sparkl3d::cuda::CudaColliderOptions;
 use sparkl3d::prelude::*;
 use sparkl3d::third_party::rapier::MpmTestbedPlugin;
 
@@ -41,16 +42,22 @@ pub fn init_world(testbed: &mut Testbed) {
         .build(),
     );
 
+    let mut collider_handles = vec![];
+
     for i in 0..4 {
-        colliders.insert(
-            ColliderBuilder::triangle(a, b, c)
-                .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
-                .build(),
+        collider_handles.push(
+            colliders.insert(
+                ColliderBuilder::triangle(a, b, c)
+                    .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
+                    .build(),
+            ),
         );
-        colliders.insert(
-            ColliderBuilder::triangle(a, c, d)
-                .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
-                .build(),
+        collider_handles.push(
+            colliders.insert(
+                ColliderBuilder::triangle(a, c, d)
+                    .rotation(vector![0.0, std::f32::consts::PI / 2.0 * i as f32, 0.0])
+                    .build(),
+            ),
         );
     }
 
@@ -83,14 +90,21 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
-    let plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    let collider_options = collider_handles
+        .iter()
+        .map(|&handle| CudaColliderOptions {
+            handle,
+            enable_cdf: true,
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+
+    let mut plugin = MpmTestbedPlugin::new(models, particles, cell_width);
+    plugin.collider_options = collider_options;
     testbed.add_plugin(plugin);
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    testbed.look_at(
-        Point::new(ground_half_side, 4.0, ground_half_side + 20.0),
-        point![ground_half_side, 1.0, ground_half_side],
-    );
+    testbed.look_at(point![20.0, 4.0, 20.0], point![0.0, 1.0, 0.0]);
 }
 
 fn main() {
