@@ -33,11 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
     for i in 0..=n {
         heigths.push(-(i as f32 * std::f32::consts::PI / (n as f32)).sin());
     }
-    colliders.insert(
-        ColliderBuilder::heightfield(heigths.into(), vector![2.0, 1.0])
-            .translation(vector![0.5, 1.5])
-            .build(),
-    );
+    colliders.insert(ColliderBuilder::heightfield(heigths.into(), vector![2.0, 1.0]).build());
 
     for _ in 0..1 {
         let snow_model = models.insert(ParticleModel::with_plasticity(
@@ -47,7 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let snow = helper::sample_shape(
             &*SharedShape::cuboid(0.1, 0.2), // w, w / 2.0),
-            Isometry::translation(cell_width * 40.0, ground_shift + 0.6 + 0.2),
+            Isometry::translation(-0.2, -0.6),
             snow_model,
             cell_width / 4.0,
             1000.0,
@@ -64,7 +60,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
         for p in &mut sand {
             p.model = sand_model;
-            p.position.y += 0.5;
+            p.position.x += 0.4;
+            p.position.y += 0.4;
         }
         particles.insert_batch(sand);
     }
@@ -89,14 +86,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let shape = SharedShape::convex_decomposition(&star, &indices);
 
     let model = ParticleModel::with_failure(
-        CorotatedLinearElasticity::new(1.0e5, 0.2),
+        CorotatedLinearElasticity::new(1.0e5, -0.2),
         MaximumStressFailure::new(1.0e5, Real::MAX),
     );
     let star_model = models.insert(model);
 
     let star = helper::sample_shape(
         &*shape.0,
-        Isometry::translation(cell_width * 40.0, 1.7),
+        Isometry::translation(0.0, 0.0),
         star_model,
         cell_width / 4.0,
         4000.0,
@@ -114,7 +111,8 @@ pub fn init_world(testbed: &mut Testbed) {
         ImpulseJointSet::new(),
         MultibodyJointSet::new(),
     );
-    testbed.integration_parameters_mut().dt = 1.0 / 60.0;
+    testbed.integration_parameters_mut().dt = 1.0 / 120.0;
+    testbed.look_at(Point::new(0.0, -0.3), 400.0);
 }
 
 fn main() {

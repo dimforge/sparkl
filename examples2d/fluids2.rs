@@ -76,7 +76,7 @@ pub fn init_world(testbed: &mut Testbed) {
         MultibodyJointSet::new(),
     );
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    // testbed.look_at(Point::new(0.0, 16.0, 0.0), point![6.0, 10.0, 6.0]);
+    testbed.look_at(Point::new(0.0, 1.0), 30.0);
 }
 
 fn main() {

@@ -106,7 +106,7 @@ pub fn init_world(testbed: &mut Testbed) {
         MultibodyJointSet::new(),
     );
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    // testbed.physics_state_mut().gravity.y = -981.0;
+    testbed.look_at(Point::new(width, 2.0), 39.0);
 }
 
 fn main() {

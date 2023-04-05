@@ -22,7 +22,7 @@ pub struct VisualizationMode {
 impl Default for VisualizationMode {
     fn default() -> Self {
         Self {
-            particle_mode: DEFAULT_PARTICLE_MODES[5],
+            particle_mode: DEFAULT_PARTICLE_MODES[0],
             show_particles: true,
             particle_scale: 0.02,
             particle_volume: true,
