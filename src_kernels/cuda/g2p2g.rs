@@ -51,9 +51,10 @@ impl SharedKernel {
             + (assoc_cell_index_in_block.y + 1) * 8
             + (assoc_cell_index_in_block.z + 1) * 8 * 8;
 
-        let assoc_cell_before_integration = particle_pos_ꞵ.point.map(|e| (e / cell_width).round());
-        let assoc_cell_afbefore_advectioner_integration =
-            particle_pos.point.map(|e| (e / cell_width).round());
+        let assoc_cell_before_integration = particle_pos_before_advection
+            .point
+            .map(|e| (e / cell_width).round());
+        let assoc_cell_after_integration = particle_pos.point.map(|e| (e / cell_width).round());
 
         let particle_cell_movement =
             (assoc_cell_after_integration - assoc_cell_before_integration).map(|e| e as i64);
