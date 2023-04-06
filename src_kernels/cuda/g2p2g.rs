@@ -33,6 +33,7 @@ struct SharedKernel {
 
 impl SharedKernel {
     unsafe fn new(
+        particle_pos_before_advection: &ParticlePosition,
         particle_pos: &ParticlePosition,
         shared_nodes: *mut GridGatherData,
         cell_width: f32,
@@ -41,7 +42,7 @@ impl SharedKernel {
         let weights = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
         let assoc_cell_index_in_block =
-            particle_pos.associated_cell_index_in_block_off_by_two(cell_width);
+            particle_pos_before_advection.associated_cell_index_in_block_off_by_two(cell_width);
         #[cfg(feature = "dim2")]
         let packed_cell_index_in_block =
             (assoc_cell_index_in_block.x + 1) + (assoc_cell_index_in_block.y + 1) * 8;
@@ -49,6 +50,23 @@ impl SharedKernel {
         let packed_cell_index_in_block = (assoc_cell_index_in_block.x + 1)
             + (assoc_cell_index_in_block.y + 1) * 8
             + (assoc_cell_index_in_block.z + 1) * 8 * 8;
+
+        let assoc_cell_before_integration = particle_pos_ꞵ.point.map(|e| (e / cell_width).round());
+        let assoc_cell_afbefore_advectioner_integration =
+            particle_pos.point.map(|e| (e / cell_width).round());
+
+        let particle_cell_movement =
+            (assoc_cell_after_integration - assoc_cell_before_integration).map(|e| e as i64);
+
+        #[cfg(feature = "dim2")]
+        let packed_cell_index_in_block = (packed_cell_index_in_block as i64
+            + (particle_cell_movement.x)
+            + (particle_cell_movement.y) * 8) as u32;
+        #[cfg(feature = "dim3")]
+        let packed_cell_index_in_block = (packed_cell_index_in_block as i64
+            + (particle_cell_movement.x)
+            + (particle_cell_movement.y) * 8
+            + (particle_cell_movement.z) * 8 * 8) as u32;
 
         let midcell_mass = {
             let midcell = &*shared_nodes
@@ -381,6 +399,7 @@ unsafe fn particle_g2p2g(
     particle_updater: impl ParticleUpdater,
     enable_cdf: bool,
 ) {
+    let particle_pos_before_advection = *particle_pos;
     let (mut interpolated_data, artificial_pressure_force) = g2p(
         dt,
         rigid_world,
@@ -411,6 +430,7 @@ unsafe fn particle_g2p2g(
         p2g(
             dt,
             particle_status,
+            &particle_pos_before_advection,
             particle_pos,
             particle_vel,
             particle_volume,
@@ -440,7 +460,7 @@ unsafe fn g2p(
     enable_cdf: bool,
 ) -> (InterpolatedParticleData, Vector<Real>) {
     let inv_d = Kernel::inv_d(cell_width);
-    let shared_kernel = SharedKernel::new(particle_pos, shared_nodes, cell_width);
+    let shared_kernel = SharedKernel::new(particle_pos, particle_pos, shared_nodes, cell_width);
 
     // APIC grid-to-particle transfer.
     let mut interpolated_data = InterpolatedParticleData::default();
@@ -524,6 +544,7 @@ unsafe fn g2p(
 unsafe fn p2g(
     dt: Real,
     particle_status: &mut ParticleStatus,
+    particle_pos_before_advection: &ParticlePosition,
     particle_pos: &mut ParticlePosition,
     particle_vel: &mut ParticleVelocity,
     particle_volume: &mut ParticleVolume,
@@ -539,7 +560,12 @@ unsafe fn p2g(
 ) {
     let tid = thread::thread_idx_x();
     let inv_d = Kernel::inv_d(cell_width);
-    let shared_kernel = SharedKernel::new(particle_pos, shared_nodes, cell_width);
+    let shared_kernel = SharedKernel::new(
+        particle_pos_before_advection,
+        particle_pos,
+        shared_nodes,
+        cell_width,
+    );
 
     let affine = particle_volume.mass * interpolated_data.velocity_gradient
         - (particle_volume.volume0 * inv_d * dt) * stress;
