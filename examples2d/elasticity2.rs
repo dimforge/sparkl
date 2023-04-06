@@ -29,7 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let height_offset = 0.5;
     let width = 6.0;
     let height = 3.0;
-    let thickness = 0.1;
+    let thickness = cell_width * 3.0;
 
     colliders.insert(
         ColliderBuilder::cuboid(width, thickness)

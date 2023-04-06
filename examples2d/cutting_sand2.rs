@@ -22,7 +22,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let height_offset = 100.0 * particle_rad;
     let width = 30.0;
     let height = (particles_height as f32 + 1.0) * particle_rad * 2.0;
-    let thickness = 2.0 * particle_rad;
+    let thickness = 3.0 * cell_width;
 
     colliders.insert(
         ColliderBuilder::cuboid(width, thickness)

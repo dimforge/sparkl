@@ -408,6 +408,7 @@ unsafe fn particle_g2p2g(
         particle_pos,
         particle_cdf,
         particle_vel,
+        particle_volume,
         shared_nodes,
         cell_width,
         &particle_updater,
@@ -455,6 +456,7 @@ unsafe fn g2p(
     particle_pos: &mut ParticlePosition,
     particle_cdf: &mut ParticleCdf,
     particle_vel: &ParticleVelocity,
+    particle_volume: &ParticleVolume,
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     particle_updater: &impl ParticleUpdater,
@@ -489,12 +491,24 @@ unsafe fn g2p(
             node.velocity
         } else {
             // the particle has collided and needs to be projected along the collider
-            rigid_world.project_particle_velocity(
+            let projected_velocity = rigid_world.particle_collision(
                 particle_pos.point,
                 particle_vel.vector,
                 particle_cdf.normal,
                 node.cdf.closest_collider_index,
-            )
+            );
+
+            let collider = rigid_world.collider(node.cdf.closest_collider_index);
+            if let Some(rigid_body) = &mut collider
+                .rigid_body_index
+                .map(|index| rigid_world.rigid_body_mut(index))
+            {
+                let impulse =
+                    weight * particle_volume.mass * (particle_vel.vector - projected_velocity);
+                rigid_body.apply_particle_impulse(impulse, particle_pos.point);
+            }
+
+            projected_velocity
         };
 
         interpolated_data.velocity += weight * velocity;

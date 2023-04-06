@@ -1,8 +1,8 @@
-use crate::DevicePointer;
+use crate::{cuda::AtomicInt, DevicePointer};
 use core::marker::PhantomData;
 use na::ComplexField;
 use parry::{
-    math::{AngVector, Isometry, Point, Real, Vector},
+    math::{AngVector, Isometry, Matrix, Point, Real, Vector},
     query::{PointProjection, PointQueryWithLocation},
     shape::{Cuboid, CudaHeightFieldPtr, CudaTriMeshPtr, Segment, SegmentPointLocation, Triangle},
     utils::CudaArrayPointer1,
@@ -206,7 +206,7 @@ pub fn polyline_project_point(
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GpuRigidBody {
     pub position: Isometry<Real>,
@@ -214,6 +214,65 @@ pub struct GpuRigidBody {
     pub angvel: AngVector<Real>,
     pub mass: Real,
     pub center_of_mass: Point<Real>,
+    pub effective_inv_mass: Vector<Real>,
+    #[cfg(feature = "dim2")]
+    pub effective_world_inv_inertia_sqrt: Real,
+    #[cfg(feature = "dim3")]
+    pub effective_world_inv_inertia_sqrt: Matrix<Real>,
+    pub linvel_update: Vector<Real>,
+    pub angvel_update: AngVector<Real>,
+    // pub impulse: Vector<Real>,
+    // pub torque: AngVector<Real>,
+    pub lock: u32,
+}
+
+impl Default for GpuRigidBody {
+    fn default() -> Self {
+        Self {
+            position: Isometry::default(),
+            linvel: na::zero(),
+            angvel: na::zero(),
+            mass: na::zero(),
+            center_of_mass: Point::origin(),
+            effective_inv_mass: na::zero(),
+            effective_world_inv_inertia_sqrt: na::zero(),
+            linvel_update: na::zero(),
+            angvel_update: na::zero(),
+            // impulse: na::zero(),
+            // torque: na::zero(),
+            lock: na::zero(),
+        }
+    }
+}
+
+impl GpuRigidBody {
+    pub fn apply_particle_impulse(
+        &mut self,
+        impulse: Vector<Real>,
+        particle_position: Point<Real>,
+    ) {
+        #[cfg(feature = "dim2")]
+        let torque_impulse = {
+            let difference = particle_position - self.center_of_mass;
+
+            difference.x * impulse.y - difference.y + impulse.x
+        };
+        #[cfg(feature = "dim3")]
+        let torque_impulse = (particle_position - self.center_of_mass).cross(&impulse);
+
+        let linvel = self.effective_inv_mass.component_mul(&impulse);
+        let angvel = self.effective_world_inv_inertia_sqrt
+            * (self.effective_world_inv_inertia_sqrt * torque_impulse);
+
+        unsafe {
+            while self.lock.global_atomic_exch_acq(1) == 1 {}
+            self.linvel_update += linvel;
+            self.angvel_update += angvel;
+            // self.impulse += impulse;
+            // self.torque += torque_impulse;
+            self.lock.global_atomic_exch_rel(0);
+        }
+    }
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
@@ -256,6 +315,10 @@ impl GpuRigidWorld {
         unsafe { &*self.rigid_body_ptr.as_ptr().add(i as usize) }
     }
 
+    pub fn rigid_body_mut(&self, i: u32) -> &mut GpuRigidBody {
+        unsafe { &mut *self.rigid_body_ptr.as_mut_ptr().add(i as usize) }
+    }
+
     pub fn collider(&self, i: u32) -> &GpuCollider {
         unsafe { &*self.collider_ptr.as_ptr().add(i as usize) }
     }
@@ -290,23 +353,19 @@ impl GpuRigidWorld {
         }
     }
 
-    pub fn project_particle_velocity(
+    pub fn particle_collision(
         &self,
         particle_position: Point<Real>,
         particle_velocity: Vector<Real>,
         surface_normal: Vector<Real>,
         closest_collider_index: u32,
     ) -> Vector<Real> {
-        // do we need this and how do we set this properly?
-        let correction = 0.0;
-        let dt = 0.0;
-        let correction_velocity = dt * correction * surface_normal;
-
         let collider = self.collider(closest_collider_index);
 
-        let collider_velocity = if let Some(rigid_body_index) = collider.rigid_body_index {
-            let rigid_body = self.rigid_body(rigid_body_index);
-
+        let collider_velocity = if let Some(rigid_body) = &mut collider
+            .rigid_body_index
+            .map(|index| self.rigid_body(index))
+        {
             #[cfg(feature = "dim2")]
             {
                 rigid_body.linvel
@@ -323,13 +382,12 @@ impl GpuRigidWorld {
             na::zero()
         };
 
-        let projected_velocity = collider.boundary_condition.project(
-            particle_velocity - collider_velocity,
-            surface_normal,
-            collider.friction,
-        );
-
-        collider_velocity + projected_velocity + correction_velocity
+        collider_velocity
+            + collider.boundary_condition.project(
+                particle_velocity - collider_velocity,
+                surface_normal,
+                collider.friction,
+            )
     }
 
     pub fn iter_colliders(&self) -> GpuColliderIter {

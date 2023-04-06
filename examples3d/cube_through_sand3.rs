@@ -80,12 +80,14 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let block_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
         .translation(vector![-10.0, 3.0, 0.0])
-        .linvel(vector![10.0, 0.0, 0.0])
+        .linvel(vector![20.0, 0.0, 0.0])
         .angvel(vector![0.0, 0.0, 0.0])
-        .gravity_scale(0.0)
+        .gravity_scale(1.0)
         .build();
 
-    let block_collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0).density(1.0).build();
+    let block_collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+        .density(1000.0)
+        .build();
 
     let block_body_handle = bodies.insert(block_body);
     let block_collider_handle =

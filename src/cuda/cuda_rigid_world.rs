@@ -3,8 +3,12 @@ use crate::{
     cuda::generate_rigid_particles::{generate_collider_mesh, generate_rigid_particles},
     kernels::GpuCollider,
 };
-use cust::{error::CudaResult, memory::DeviceBuffer};
+use cust::{
+    error::CudaResult,
+    memory::{CopyDestination, DeviceBuffer, LockedBuffer},
+};
 use kernels::{GpuColliderShape, GpuRigidBody, GpuRigidWorld, RigidParticle};
+use na::matrix;
 use parry::{
     math::{Point, Real},
     shape::{CudaHeightField, CudaTriMesh},
@@ -42,8 +46,10 @@ pub struct CudaRigidWorld {
     rigid_particles_buffer: DeviceBuffer<RigidParticle>,
     vertex_buffer: DeviceBuffer<Point<Real>>,
     index_buffer: DeviceBuffer<u32>,
+    rigid_body_writeback: LockedBuffer<GpuRigidBody>,
     // maps the CPU side rigid body handle to the GPU side rigid body index
-    rigid_body_map: HashMap<RigidBodyHandle, u32>,
+    rigid_body_handle_index_map: HashMap<RigidBodyHandle, u32>,
+    rigid_body_index_handle_map: HashMap<u32, RigidBodyHandle>,
     // NOTE: keep this to keep the cuda buffers allocated.
     // Todo: remove this once the CDF is the default
     _heightfield_buffers: Vec<CudaHeightField>,
@@ -58,7 +64,8 @@ impl CudaRigidWorld {
         collider_options: Vec<CudaColliderOptions>,
         cell_width: Real,
     ) -> CudaResult<Self> {
-        let mut rigid_body_map = HashMap::new();
+        let mut rigid_body_handle_index_map = HashMap::new();
+        let mut rigid_body_index_handle_map = HashMap::new();
         let mut gpu_rigid_bodies = vec![];
         let mut gpu_colliders = vec![];
         let mut rigid_particles = vec![];
@@ -71,7 +78,18 @@ impl CudaRigidWorld {
 
         if let Some(rigid_body_set) = rigid_body_set {
             for (handle, rigid_body) in rigid_body_set.iter() {
-                rigid_body_map.insert(handle, gpu_rigid_bodies.len() as u32);
+                rigid_body_handle_index_map.insert(handle, gpu_rigid_bodies.len() as u32);
+                rigid_body_index_handle_map.insert(gpu_rigid_bodies.len() as u32, handle);
+
+                let m = rigid_body
+                    .mass_properties()
+                    .effective_world_inv_inertia_sqrt;
+                #[cfg(feature = "dim2")]
+                let effective_world_inv_inertia_sqrt = m;
+                #[cfg(feature = "dim3")]
+                let effective_world_inv_inertia_sqrt = matrix![m.m11, m.m12, m.m13;
+                m.m12, m.m22, m.m23;
+                m.m13, m.m23, m.m33];
 
                 gpu_rigid_bodies.push(GpuRigidBody {
                     position: *rigid_body.position(),
@@ -79,6 +97,13 @@ impl CudaRigidWorld {
                     angvel: rigid_body.angvel().clone(),
                     mass: rigid_body.mass(),
                     center_of_mass: *rigid_body.center_of_mass(),
+                    effective_inv_mass: rigid_body.mass_properties().effective_inv_mass,
+                    effective_world_inv_inertia_sqrt,
+                    linvel_update: *rigid_body.linvel(),
+                    angvel_update: rigid_body.angvel().clone(),
+                    // impulse: Default::default(),
+                    // torque: Default::default(),
+                    lock: 0,
                 });
             }
         }
@@ -106,7 +131,7 @@ impl CudaRigidWorld {
             }
 
             let (rigid_body_index, position) = if let Some(handle) = collider.parent() {
-                let rigid_body_index = rigid_body_map.get(&handle).copied();
+                let rigid_body_index = rigid_body_handle_index_map.get(&handle).copied();
                 let position = *collider.position_wrt_parent().unwrap();
                 (rigid_body_index, position)
             } else {
@@ -179,7 +204,9 @@ impl CudaRigidWorld {
             rigid_particles_buffer,
             vertex_buffer,
             index_buffer,
-            rigid_body_map,
+            rigid_body_writeback: LockedBuffer::new(&GpuRigidBody::default(), 0).unwrap(),
+            rigid_body_handle_index_map,
+            rigid_body_index_handle_map,
             _heightfield_buffers: heightfield_buffers,
             _polyline_buffers: polyline_buffers,
             _trimesh_buffers: trimesh_buffers,
@@ -187,20 +214,66 @@ impl CudaRigidWorld {
     }
 
     // Todo: consider updating the entire state of the rigid world instead of just the rigid bodies
-    pub fn update_rigid_bodies(&mut self, rigid_bodies: &RigidBodySet) -> CudaResult<()> {
+    pub fn update_rigid_bodies_device(&mut self, rigid_bodies: &RigidBodySet) -> CudaResult<()> {
         for (handle, rigid_body) in rigid_bodies.iter() {
-            if let Some(&rigid_body_index) = self.rigid_body_map.get(&handle) {
+            if let Some(&rigid_body_index) = self.rigid_body_handle_index_map.get(&handle) {
+                // Todo: this is really hacky and should be avoided by implementing cuda copy for AngularInertia
+                let m = rigid_body
+                    .mass_properties()
+                    .effective_world_inv_inertia_sqrt;
+                #[cfg(feature = "dim2")]
+                let effective_world_inv_inertia_sqrt = m;
+                #[cfg(feature = "dim3")]
+                let effective_world_inv_inertia_sqrt = matrix![m.m11, m.m12, m.m13;
+                m.m12, m.m22, m.m23;
+                m.m13, m.m23, m.m33];
+
                 self.gpu_rigid_bodies[rigid_body_index as usize] = GpuRigidBody {
                     position: *rigid_body.position(),
                     linvel: *rigid_body.linvel(),
                     angvel: rigid_body.angvel().clone(),
                     mass: rigid_body.mass(),
                     center_of_mass: *rigid_body.center_of_mass(),
-                };
+                    effective_inv_mass: rigid_body.mass_properties().effective_inv_mass,
+                    effective_world_inv_inertia_sqrt,
+                    linvel_update: *rigid_body.linvel(),
+                    angvel_update: rigid_body.angvel().clone(),
+                    // impulse: Default::default(),
+                    // torque: Default::default(),
+                    lock: 0,
+                }
             }
         }
 
         self.rigid_body_buffer = DeviceBuffer::from_slice(&self.gpu_rigid_bodies)?;
+
+        Ok(())
+    }
+
+    pub fn update_rigid_bodies_host(&mut self, rigid_bodies: &mut RigidBodySet) -> CudaResult<()> {
+        self.rigid_body_writeback =
+            unsafe { LockedBuffer::uninitialized(self.gpu_rigid_bodies.len()).unwrap() };
+
+        self.rigid_body_buffer
+            .index(..)
+            .copy_to(&mut self.rigid_body_writeback[..])
+            .expect("Could not retrieve rigid boddy data from the GPU.");
+
+        for (index, gpu_rigid_body) in self.rigid_body_writeback.iter().enumerate() {
+            let handle = self
+                .rigid_body_index_handle_map
+                .get(&(index as u32))
+                .unwrap();
+
+            // dbg!(gpu_rigid_body.impulse);
+            // dbg!(gpu_rigid_body.torque);
+            // dbg!(gpu_rigid_body.linvel_update - gpu_rigid_body.linvel);
+            // dbg!(gpu_rigid_body.angvel_update - gpu_rigid_body.angvel);
+
+            let rigid_body = rigid_bodies.get_mut(*handle).unwrap();
+            rigid_body.set_linvel(gpu_rigid_body.linvel_update, true);
+            rigid_body.set_angvel(gpu_rigid_body.angvel_update, true);
+        }
 
         Ok(())
     }

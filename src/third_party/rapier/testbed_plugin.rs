@@ -449,7 +449,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
             if let Some(rigid_world) = &mut cuda_data.rigid_world {
                 rigid_world
-                    .update_rigid_bodies(&physics.bodies)
+                    .update_rigid_bodies_device(&physics.bodies)
                     .expect("Failed to update the CUDA rigid world.");
             } else {
                 log::info!("Initializing the CUDA rigid world.");
@@ -523,8 +523,6 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     )
                     .expect("CUDA stepping failed");
 
-                // Todo: read back gpu rigid bodies
-
                 /*
                  *
                  * Read back the particle data.
@@ -590,6 +588,19 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         &mut self.host_sparse_grid_data,
                         context.num_active_blocks,
                     );
+                }
+
+                // Todo: read back gpu rigid bodies
+
+                #[cfg(feature = "cuda")]
+                for cuda_data in &mut self.cuda_data {
+                    cuda_data.make_current().unwrap();
+
+                    if let Some(rigid_world) = &mut cuda_data.rigid_world {
+                        rigid_world
+                            .update_rigid_bodies_host(&mut physics.bodies)
+                            .expect("Failed to update the CUDA rigid world.");
+                    }
                 }
 
                 for (out_p, pos, vel, phase, cdf) in itertools::multizip((

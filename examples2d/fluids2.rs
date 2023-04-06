@@ -11,36 +11,31 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut models = ParticleModelSet::new();
     let mut particles = ParticleSet::new();
-    let mut colliders = ColliderSet::new();
 
     let cell_width = 0.1;
-    let particle_rad = cell_width / 2.0;
-    let particles_width = 100;
-    let particles_height = 50;
-
-    let height_offset = 50.0 * particle_rad;
-    let width = (particles_width as f32 + 1.0) * particle_rad;
-    let height = (particles_height as f32 + 1.0) * particle_rad + height_offset / 2.0;
-    let thickness = 2.0 * particle_rad;
-
+    let mut colliders = ColliderSet::new();
+    let ground_height = cell_width * 10.0;
+    let ground_shift = cell_width * 40.0;
     colliders.insert(
-        ColliderBuilder::cuboid(width, thickness)
-            .translation(vector![0.0, -thickness])
-            .friction(0.0)
+        ColliderBuilder::cuboid(1000.0, ground_height)
+            .translation(vector![0.0, ground_shift - ground_height])
+            .friction(1.0)
+            .build(),
+    );
+    colliders.insert(
+        ColliderBuilder::cuboid(ground_height, 1000.0)
+            .translation(vector![ground_shift - ground_height, 0.0])
+            .friction(1.0)
             .build(),
     );
 
     colliders.insert(
-        ColliderBuilder::cuboid(thickness, height)
-            .translation(vector![-width - thickness, height - 2.0 * thickness])
-            .friction(0.0)
-            .build(),
-    );
-
-    colliders.insert(
-        ColliderBuilder::cuboid(thickness, height)
-            .translation(vector![width + thickness, height - 2.0 * thickness])
-            .friction(0.0)
+        ColliderBuilder::cuboid(ground_height, 1000.0)
+            .translation(vector![
+                ground_shift - ground_height + ground_shift * 8.0,
+                0.0
+            ])
+            .friction(1.0)
             .build(),
     );
 
@@ -52,11 +47,14 @@ pub fn init_world(testbed: &mut Testbed) {
     }));
 
     let block1 = helper::cube_particles(
-        point![-width + 2.0 * particle_rad, height_offset],
-        particles_width,
-        particles_height,
+        point![
+            ground_shift + cell_width * 2.0 + cell_width / 4.0,
+            ground_shift + cell_width * 2.0 + cell_width / 4.0
+        ],
+        300,
+        300,
         fluids_model,
-        particle_rad,
+        cell_width / 4.0,
         1000.0,
         false,
     );
@@ -76,7 +74,7 @@ pub fn init_world(testbed: &mut Testbed) {
         MultibodyJointSet::new(),
     );
     testbed.integration_parameters_mut().dt = 1.0 / 60.0;
-    testbed.look_at(Point::new(0.0, 1.0), 30.0);
+    // testbed.look_at(Point::new(0.0, 16.0, 0.0), point![6.0, 10.0, 6.0]);
 }
 
 fn main() {
