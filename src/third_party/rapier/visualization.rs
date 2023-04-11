@@ -117,7 +117,7 @@ const DEFAULT_PARTICLE_MODES: [ParticleMode; 6] = [
     ParticleMode::StaticColor,
     ParticleMode::VelocityColor {
         min: 0.0,
-        max: 100.0,
+        max: 10.0,
     },
     ParticleMode::DensityRatio { max: 10.0 },
     ParticleMode::Position {

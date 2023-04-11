@@ -8,6 +8,7 @@ mod fluids3;
 mod helper;
 mod sand3;
 mod sand_penetration3;
+mod wheel3;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -58,6 +59,7 @@ pub fn main() {
         ("Cube through sand", cube_through_sand3::init_world),
         ("Cutting sand", cutting_sand3::init_world),
         ("Sand penetration", sand_penetration3::init_world),
+        ("Wheel", wheel3::init_world),
         ("Elasticity", sand3::init_world),
         ("Fluids", fluids3::init_world),
     ];

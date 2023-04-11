@@ -1,6 +1,5 @@
 use crate::helper;
 use na::{point, vector, DMatrix};
-use rapier3d::math::Point;
 use rapier3d::prelude::{
     ColliderBuilder, ColliderSet, ImpulseJointSet, MultibodyJointSet, RigidBodySet,
 };

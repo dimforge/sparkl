@@ -29,8 +29,8 @@ pub fn init_world(testbed: &mut Testbed) {
     );
 
     let block_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
-        .translation(vector![-6.0, 2.0])
-        .linvel(vector![20.0, 0.0])
+        .translation(vector![-3.0, 2.0])
+        .linvel(vector![10.0, 0.0])
         .angvel(0.0)
         .gravity_scale(1.0)
         .build();
