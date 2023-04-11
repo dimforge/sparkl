@@ -136,7 +136,7 @@ pub struct ParticleRenderPipeline {
 impl FromWorld for ParticleRenderPipeline {
     fn from_world(world: &mut World) -> Self {
         let world = world.cell();
-        let asset_server = world.get_resource::<AssetServer>().unwrap();
+        let _asset_server = world.get_resource::<AssetServer>().unwrap();
         // asset_server.watch_for_changes().unwrap();
         let mesh_pipeline = world.get_resource::<MeshPipeline>().unwrap();
 

@@ -1,8 +1,8 @@
-use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
+use crate::{cuda::InterpolatedParticleData, GpuParticleModel, GpuRigidWorld};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
-    ParticleVolume,
+    ActiveTimestepBounds, ParticleCdf, ParticlePhase, ParticlePosition, ParticleStatus,
+    ParticleVelocity, ParticleVolume,
 };
 
 #[cfg(not(feature = "std"))]
@@ -26,14 +26,16 @@ pub trait ParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        colliders: &GpuColliderSet,
+        rigid_world: &GpuRigidWorld,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
+        enable_cdf: bool,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
 
@@ -74,14 +76,16 @@ impl ParticleUpdater for DefaultParticleUpdater {
         &self,
         dt: Real,
         cell_width: Real,
-        colliders: &GpuColliderSet,
+        rigid_world: &GpuRigidWorld,
         particle_id: u32,
         particle_status: &mut ParticleStatus,
         particle_pos: &mut ParticlePosition,
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        particle_cdf: &mut ParticleCdf,
         interpolated_data: &mut InterpolatedParticleData,
+        enable_cdf: bool,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);
 
@@ -196,27 +200,19 @@ impl ParticleUpdater for DefaultParticleUpdater {
             }
         }
 
+        let penetration = particle_cdf.color.1 != 0;
+        // let penetration = true; // disabled for now, until the drift and explosions are fixed
+
         /*
          * Particle projection.
          * TODO: refactor to its own function.
          */
         let mut penalty_force = Vector::zeros();
-        if false {
-            // enable_boundary_particle_projection {
-            for collider in colliders.iter() {
-                if collider.penalty_stiffness > 0.0 {
-                    if let Some(proj) = collider.shape.project_point_with_max_dist(
-                        &collider.position,
-                        &particle_pos.point,
-                        false,
-                        100.0 * cell_width,
-                    ) {
-                        if proj.is_inside {
-                            penalty_force +=
-                                (proj.point - particle_pos.point) * collider.penalty_stiffness;
-                        }
-                    }
-                }
+        if enable_cdf {
+            if penetration {
+                let penalty_stiffness = rigid_world.penalty_stiffness;
+                penalty_force =
+                    penalty_stiffness * particle_cdf.distance.abs() * particle_cdf.normal;
             }
         }
 

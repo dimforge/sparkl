@@ -1,5 +1,6 @@
 use crate::core::math::Point;
 use crate::cuda::{CudaParticleSet, SingleGpuMpmContext};
+use crate::kernels::cuda::hash;
 use crate::kernels::cuda::{ActiveBlockHeader, GridHashMap, GridHashMapEntry};
 use crate::kernels::{
     BlockHeaderId, BlockVirtualId, DispatchBlock2ActiveBlock, GpuGrid, GpuGridNode, HaloBlockData,
@@ -7,7 +8,7 @@ use crate::kernels::{
 };
 use crate::math::{Real, DIM};
 use crate::utils::PrefixSumWorkspace;
-use cust::memory::GpuBuffer;
+use cust::memory::{GpuBuffer, LockedBuffer};
 use cust::{
     error::CudaResult,
     launch,
@@ -649,5 +650,86 @@ impl CudaSparseGrid {
         assert!(seen.iter().all(|b| *b));
 
         Ok(())
+    }
+
+    pub fn copy_data_to_host(&self, host_data: &mut HostSparseGridData, num_active_blocks: u32) {
+        let device_data = &self.curr_data;
+        let block_capacity = device_data.block_capacity as usize;
+        let cell_capacity = device_data.buffer.len();
+
+        host_data.num_active_blocks = num_active_blocks;
+
+        host_data.node_buffer = unsafe { LockedBuffer::uninitialized(cell_capacity).unwrap() };
+        host_data.active_blocks = unsafe { LockedBuffer::uninitialized(block_capacity).unwrap() };
+        let mut grid_hash_map = unsafe { LockedBuffer::uninitialized(block_capacity).unwrap() };
+
+        device_data
+            .buffer
+            .copy_to(&mut host_data.node_buffer[..cell_capacity])
+            .expect("Could not retrieve grid data from the GPU.");
+        device_data
+            .active_blocks
+            .index(..block_capacity)
+            .copy_to(&mut host_data.active_blocks[..block_capacity])
+            .expect("Could not retrieve grid data from the GPU.");
+        device_data
+            .packed_key_to_active_block
+            .index(..block_capacity)
+            .copy_to(&mut grid_hash_map[..block_capacity])
+            .expect("Could not retrieve grid data from the GPU.");
+
+        host_data.grid_hash_map =
+            unsafe { HostGridHashMap::from_raw_parts(grid_hash_map, block_capacity as u32) };
+    }
+}
+
+pub struct HostSparseGridData {
+    pub num_active_blocks: u32,
+    pub node_buffer: LockedBuffer<GpuGridNode>,
+    pub active_blocks: LockedBuffer<ActiveBlockHeader>,
+    pub grid_hash_map: HostGridHashMap,
+}
+
+impl Default for HostSparseGridData {
+    fn default() -> Self {
+        Self {
+            num_active_blocks: 0,
+            node_buffer: LockedBuffer::new(&GpuGridNode::default(), 0).unwrap(),
+            active_blocks: LockedBuffer::new(&ActiveBlockHeader::default(), 0).unwrap(),
+            grid_hash_map: unsafe {
+                HostGridHashMap::from_raw_parts(
+                    LockedBuffer::new(&GridHashMapEntry::default(), 0).unwrap(),
+                    0,
+                )
+            },
+        }
+    }
+}
+
+pub struct HostGridHashMap {
+    entries: LockedBuffer<GridHashMapEntry>,
+    capacity: u32, // NOTE: must be a power of two.
+}
+
+impl HostGridHashMap {
+    pub unsafe fn from_raw_parts(entries: LockedBuffer<GridHashMapEntry>, capacity: u32) -> Self {
+        Self { entries, capacity }
+    }
+
+    pub fn get(&self, key: BlockVirtualId) -> Option<BlockHeaderId> {
+        let mut slot = hash(key.0) & (self.capacity as u64 - 1);
+
+        loop {
+            let entry = self.entries[slot as usize];
+            if entry.key == key {
+                return Some(entry.value);
+            }
+
+            if entry.key.0 == u64::MAX {
+                return None;
+            }
+
+            slot = (slot + 1) & (self.capacity as u64 - 1);
+        }
     }
 }

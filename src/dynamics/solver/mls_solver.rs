@@ -95,7 +95,7 @@ impl MlsSolver {
                 rigid_world,
                 grid,
                 particles,
-                params.boundary_handling,
+                params.boundary_condition,
                 params.simulation_dofs,
             );
             hooks.post_grid_update_hook(grid);

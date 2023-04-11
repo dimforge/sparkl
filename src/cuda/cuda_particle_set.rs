@@ -1,6 +1,7 @@
 use super::CudaVec;
 use crate::core::prelude::{
-    ParticleData, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity, ParticleVolume,
+    ParticleCdf, ParticleData, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
+    ParticleVolume,
 };
 use crate::dynamics::Particle;
 use cust::{
@@ -15,6 +16,7 @@ pub struct CudaParticleSet {
     pub particle_vel: CudaVec<ParticleVelocity>,
     pub particle_volume: CudaVec<ParticleVolume>,
     pub particle_phase: CudaVec<ParticlePhase>,
+    pub particle_cdf: CudaVec<ParticleCdf>,
     pub sorted_particle_ids: DeviceBuffer<u32>,
 }
 
@@ -26,7 +28,7 @@ impl Default for CudaParticleSet {
 
 impl CudaParticleSet {
     pub fn new() -> CudaResult<Self> {
-        Self::from_particles(&[], &[], &[], &[], &[])
+        Self::from_particles(&[], &[], &[], &[], &[], &[])
     }
 
     // TODO: make this async?
@@ -36,6 +38,7 @@ impl CudaParticleSet {
         particle_vel: &[ParticleVelocity],
         particle_volume: &[ParticleVolume],
         particle_phase: &[ParticlePhase],
+        particle_cdf: &[ParticleCdf],
     ) -> CudaResult<Self> {
         assert_eq!(
             particle_status.len(),
@@ -57,6 +60,11 @@ impl CudaParticleSet {
             particle_phase.len(),
             "All attribute buffer must have the same length."
         );
+        assert_eq!(
+            particle_status.len(),
+            particle_cdf.len(),
+            "All attribute buffer must have the same length."
+        );
 
         let sorted_particle_ids = DeviceBuffer::zeroed(particle_status.len())?;
 
@@ -66,6 +74,7 @@ impl CudaParticleSet {
             particle_vel: CudaVec::from_slice(particle_vel)?,
             particle_volume: CudaVec::from_slice(particle_volume)?,
             particle_phase: CudaVec::from_slice(particle_phase)?,
+            particle_cdf: CudaVec::from_slice(particle_cdf)?,
             sorted_particle_ids,
         })
     }
@@ -84,6 +93,7 @@ impl CudaParticleSet {
         self.particle_vel.truncate(new_len);
         self.particle_volume.truncate(new_len);
         self.particle_phase.truncate(new_len);
+        self.particle_cdf.truncate(new_len);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -110,6 +120,10 @@ impl CudaParticleSet {
         self.particle_phase.to_vec()
     }
 
+    pub fn read_cdf(&self) -> CudaResult<Vec<ParticleCdf>> {
+        self.particle_cdf.to_vec()
+    }
+
     pub fn read_sorted_particle_ids(&self) -> CudaResult<Vec<u32>> {
         let mut out = vec![0; self.len()];
         self.sorted_particle_ids
@@ -124,6 +138,7 @@ impl CudaParticleSet {
         self.particle_vel.remove_range(range.clone())?;
         self.particle_volume.remove_range(range.clone())?;
         self.particle_phase.remove_range(range.clone())?;
+        self.particle_cdf.remove_range(range.clone())?;
 
         Ok(())
     }
@@ -139,6 +154,7 @@ impl CudaParticleSet {
         particle_vel: &[ParticleVelocity],
         particle_volume: &[ParticleVolume],
         particle_phase: &[ParticlePhase],
+        particle_cdf: &[ParticleCdf],
     ) -> CudaResult<()> {
         assert_eq!(
             particle_status.len(),
@@ -160,6 +176,11 @@ impl CudaParticleSet {
             particle_phase.len(),
             "All attribute buffer must have the same length."
         );
+        assert_eq!(
+            particle_status.len(),
+            particle_cdf.len(),
+            "All attribute buffer must have the same length."
+        );
 
         let prev_capacity = self.capacity();
 
@@ -168,6 +189,7 @@ impl CudaParticleSet {
         self.particle_vel.append(&particle_vel)?;
         self.particle_volume.append(&particle_volume)?;
         self.particle_phase.append(&particle_phase)?;
+        self.particle_cdf.append(&particle_cdf)?;
 
         if prev_capacity != self.capacity() {
             self.sorted_particle_ids = DeviceBuffer::zeroed(self.capacity())?;
@@ -183,6 +205,7 @@ pub struct ParticleComponents {
     pub volume: Vec<ParticleVolume>,
     pub status: Vec<ParticleStatus>,
     pub phase: Vec<ParticlePhase>,
+    pub cdf: Vec<ParticleCdf>,
     pub data: Vec<ParticleData>,
 }
 
@@ -227,6 +250,15 @@ pub fn extract_particles_components(particles: &[Particle]) -> ParticleComponent
         })
         .collect();
 
+    let cdf: Vec<_> = particles
+        .iter()
+        .map(|p| ParticleCdf {
+            color: p.color,
+            distance: p.distance,
+            normal: p.normal,
+        })
+        .collect();
+
     let data: Vec<_> = particles
         .iter()
         .map(|p| ParticleData {
@@ -243,6 +275,7 @@ pub fn extract_particles_components(particles: &[Particle]) -> ParticleComponent
         volume,
         status,
         phase,
+        cdf,
         data,
     }
 }

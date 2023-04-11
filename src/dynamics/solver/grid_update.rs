@@ -1,5 +1,5 @@
 use super::MlsSolver;
-use crate::dynamics::solver::{BoundaryHandling, RigidWorld, SimulationDofs};
+use crate::dynamics::solver::{BoundaryCondition, RigidWorld, SimulationDofs};
 use crate::dynamics::{GridNode, ParticleSet};
 use crate::geometry::SpGrid;
 use crate::math::{Real, DIM};
@@ -45,7 +45,7 @@ impl MlsSolver {
         rigid_world: &RigidWorld,
         grid: &mut SpGrid<GridNode>,
         particles: &ParticleSet,
-        boundary_handling: BoundaryHandling,
+        boundary_condition: BoundaryCondition,
         simulation_dofs: SimulationDofs,
     ) {
         let cell_width = grid.cell_width();
@@ -85,14 +85,15 @@ impl MlsSolver {
                         cell.set_boundary(proj.is_inside);
                     }
 
-                    match boundary_handling {
-                        BoundaryHandling::None => {}
-                        BoundaryHandling::Stick => {
+                    match boundary_condition {
+                        BoundaryCondition::None => {}
+                        BoundaryCondition::Slip => todo!(),
+                        BoundaryCondition::Stick => {
                             if proj.is_inside {
                                 cell.velocity.fill(0.0);
                             }
                         }
-                        BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
+                        BoundaryCondition::Friction | BoundaryCondition::FrictionZUp => {
                             if let Some((mut normal, dist)) =
                                 Unit::try_new_and_get(cell_pos - proj.point, 1.0e-5)
                             {

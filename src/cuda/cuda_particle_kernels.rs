@@ -23,6 +23,7 @@ pub trait CudaParticleKernelsLauncher {
         threads: u32,
         timestep_length: Real,
         halo: bool,
+        enable_cdf: bool,
     ) -> CudaResult<()>;
 }
 
@@ -69,6 +70,7 @@ impl CudaParticleKernelsLauncher for DefaultCudaParticleKernelsLauncher {
         threads: u32,
         timestep_length: Real,
         halo: bool,
+        enable_cdf: bool,
     ) -> CudaResult<()> {
         let stream = if halo {
             &context.halo_stream
@@ -76,24 +78,24 @@ impl CudaParticleKernelsLauncher for DefaultCudaParticleKernelsLauncher {
             &context.stream
         };
         let module = &context.module;
-        let (collider_ptr, collider_len) = context.colliders.device_elements();
 
         launch!(
             module.g2p2g<<<blocks, threads, 0, stream>>>(
                 timestep_length,
-                collider_ptr,
-                collider_len,
+                context.rigid_world.device_elements(),
                 context.particles.particle_status.as_device_ptr(),
                 context.particles.particle_pos.as_device_ptr(),
                 context.particles.particle_vel.as_device_ptr(),
                 context.particles.particle_volume.as_device_ptr(),
                 context.particles.particle_phase.as_device_ptr(),
+                context.particles.particle_cdf.as_device_ptr(),
                 context.particles.sorted_particle_ids.as_device_ptr(),
                 context.models.buffer.as_device_ptr(),
                 context.grid.curr_device_elements(),
                 context.grid.next_device_elements(),
                 params.damage_model,
                 halo,
+                enable_cdf
             )
         )
     }

@@ -1,6 +1,6 @@
 pub use self::kernel::QuadraticKernel;
 pub use self::solver_parameters::{
-    BoundaryHandling, DamageModel, SimulationDofs, SolverParameters,
+    BoundaryCondition, DamageModel, SimulationDofs, SolverParameters,
 };
 
 mod kernel;

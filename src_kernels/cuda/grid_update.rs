@@ -1,19 +1,22 @@
-use crate::gpu_collider::{GpuCollider, GpuColliderSet};
-use crate::gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus};
-use crate::BlockHeaderId;
-use cuda_std::thread;
-use cuda_std::*;
+use crate::{
+    gpu_grid::{GpuGrid, GpuGridNode, GpuGridProjectionStatus},
+    gpu_rigid_world::GpuRigidWorld,
+    BlockHeaderId,
+};
+use cuda_std::{thread, *};
 use na::{vector, Unit};
-use sparkl_core::dynamics::solver::BoundaryHandling;
-use sparkl_core::math::{Point, Real, Vector};
+use sparkl_core::{
+    dynamics::solver::BoundaryCondition,
+    math::{Point, Real, Vector},
+};
 
 #[kernel] // NOTE: must be called with 4x4x4 (in 3D) or 4x4 (in 2D) threads per block.
 pub unsafe fn grid_update(
     dt: Real,
     mut next_grid: GpuGrid,
-    colliders_ptr: *const GpuCollider,
-    num_colliders: usize,
+    rigid_world: GpuRigidWorld,
     gravity: Vector<Real>,
+    enable_cdf: bool,
 ) {
     let bid = BlockHeaderId(thread::block_idx_x());
     #[cfg(feature = "dim2")]
@@ -35,19 +38,14 @@ pub unsafe fn grid_update(
     let cell_width = next_grid.cell_width();
 
     if let Some(cell) = next_grid.get_node_mut(cell_packed_id) {
-        let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
-        let collider_set = GpuColliderSet {
-            ptr: colliders_ptr,
-            len: num_colliders,
-        };
-        update_single_cell(
-            dt,
-            cell,
-            cell_pos.into(),
-            cell_width,
-            &collider_set,
-            gravity,
-        )
+        if false {
+            // Todo: use this after the CDF transition
+            update_cell(dt, cell, gravity);
+        } else {
+            let cell_pos = cell_pos_int.cast::<Real>() * cell_width;
+
+            update_single_cell(dt, cell, cell_pos.into(), cell_width, &rigid_world, gravity);
+        }
     }
 }
 
@@ -56,16 +54,16 @@ fn update_single_cell(
     cell: &mut GpuGridNode,
     cell_pos: Point<Real>,
     cell_width: Real,
-    colliders: &GpuColliderSet,
+    rigid_world: &GpuRigidWorld,
     gravity: Vector<Real>,
 ) {
-    let mut cell_velocity = (cell.momentum_velocity + cell.mass * gravity * dt)
+    let mut cell_velocity = (cell.momentum_or_velocity + cell.mass * gravity * dt)
         * sparkl_core::utils::inv_exact(cell.mass);
 
     if cell.projection_status == GpuGridProjectionStatus::NotComputed {
         let mut best_proj = None;
-        for (i, collider) in colliders.iter().enumerate() {
-            if collider.grid_boundary_handling == BoundaryHandling::None {
+        for (i, collider) in rigid_world.iter_colliders().enumerate() {
+            if collider.boundary_condition == BoundaryCondition::None || collider.enable_cdf {
                 continue;
             }
 
@@ -99,15 +97,16 @@ fn update_single_cell(
         GpuGridProjectionStatus::Inside(collider_id)
         | GpuGridProjectionStatus::Outside(collider_id) => {
             let is_inside = matches!(cell.projection_status, GpuGridProjectionStatus::Inside(_));
-            let collider = colliders.get(collider_id).unwrap();
+            let collider = rigid_world.collider(collider_id as u32);
 
-            match collider.grid_boundary_handling {
-                BoundaryHandling::Stick => {
+            match collider.boundary_condition {
+                BoundaryCondition::Stick => {
                     if is_inside {
                         cell_velocity = na::zero();
                     }
                 }
-                BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
+                BoundaryCondition::Slip => todo!(),
+                BoundaryCondition::Friction | BoundaryCondition::FrictionZUp => {
                     if let Some((mut normal, dist)) =
                         Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
                     {
@@ -118,9 +117,9 @@ fn update_single_cell(
                         #[cfg(feature = "dim2")]
                         let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
                         #[cfg(feature = "dim3")]
-                        let apply_friction = collider.grid_boundary_handling
-                            == BoundaryHandling::Friction
-                            || (collider.grid_boundary_handling == BoundaryHandling::FrictionZUp
+                        let apply_friction = collider.boundary_condition
+                            == BoundaryCondition::Friction
+                            || (collider.boundary_condition == BoundaryCondition::FrictionZUp
                                 && normal.z >= 0.0);
 
                         if apply_friction {
@@ -148,12 +147,18 @@ fn update_single_cell(
                         }
                     }
                 }
-                BoundaryHandling::None => {}
+                BoundaryCondition::None => {}
             }
         }
         _ => {}
     }
 
-    cell.momentum_velocity = cell_velocity;
-    cell.psi_momentum_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
+    cell.momentum_or_velocity = cell_velocity;
+    cell.psi_momentum_or_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
+}
+
+fn update_cell(dt: Real, cell: &mut GpuGridNode, gravity: Vector<Real>) {
+    cell.momentum_or_velocity = (cell.momentum_or_velocity + cell.mass * gravity * dt)
+        * sparkl_core::utils::inv_exact(cell.mass);
+    cell.psi_momentum_or_velocity *= sparkl_core::utils::inv_exact(cell.psi_mass);
 }

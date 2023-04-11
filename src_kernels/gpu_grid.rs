@@ -1,10 +1,9 @@
-use crate::DevicePointer;
-use na::vector;
-use sparkl_core::math::{Point, Real, Vector};
-
 use crate::cuda::{ActiveBlockHeader, AtomicAdd, GridHashMap, HaloState};
+use crate::{DevicePointer, NodeCdf};
+use na::vector;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
+use sparkl_core::math::{Point, Real, Vector};
 
 #[cfg(feature = "dim2")]
 pub const NUM_CELL_PER_BLOCK: u64 = 4 * 4;
@@ -68,7 +67,7 @@ pub const NBH_SHIFTS_SHARED: [usize; 27] = [
 pub const NBH_SHIFTS_SHARED: [usize; 9] = [18, 2, 10, 16, 0, 8, 17, 1, 9];
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable, Default)]
 #[repr(transparent)]
 pub struct BlockVirtualId(pub u64);
 
@@ -85,6 +84,10 @@ impl BlockVirtualId {
 
     pub fn unpack_pos_on_signed_grid(self) -> Vector<i64> {
         self.unpack().cast::<i64>() - Vector::repeat(Self::PACK_ORIGIN as i64)
+    }
+
+    pub fn pack_pos_on_signed_grid(pos: Vector<i64>) -> BlockVirtualId {
+        Self::pack((pos + Vector::repeat(Self::PACK_ORIGIN as i64)).map(|e| e as usize))
     }
 
     #[cfg(feature = "dim2")]
@@ -120,7 +123,7 @@ impl BlockVirtualId {
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, bytemuck::Zeroable, Default)]
 #[repr(transparent)]
 pub struct BlockHeaderId(pub u32);
 
@@ -411,6 +414,18 @@ impl GpuGrid {
             }
         }
     }
+
+    pub fn get_node_id_at_coord(&self, node_coord: Point<i64>) -> Option<NodePhysicalId> {
+        let block_coord = node_coord.coords.map(|e| (e as Real / 4.0).floor() as i64);
+        let shift = (node_coord.coords - block_coord * 4).map(|e| e as usize);
+
+        let block_virtual = BlockVirtualId::pack_pos_on_signed_grid(block_coord);
+        let block_header = unsafe { self.get_header_block_id(block_virtual)? };
+        let block_physical = block_header.to_physical();
+        let node_physical = block_physical.node_id_unchecked(shift);
+
+        Some(node_physical)
+    }
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
@@ -447,26 +462,28 @@ pub struct GpuGridNode {
     pub mass: Real,
     // That’s where the particles transfer their momentum.
     // This is then replaced by the velocity during the grid update.
-    pub momentum_velocity: Vector<Real>,
+    pub momentum_or_velocity: Vector<Real>,
     // That’s where the particles transfer their momentum.
     // This is then replaced by the velocity during the grid update.
-    pub psi_momentum_velocity: Real,
+    pub psi_momentum_or_velocity: Real,
     pub psi_mass: Real,
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
     pub projection_scaled_dir: Vector<Real>,
+    pub cdf: NodeCdf,
 }
 
 impl Default for GpuGridNode {
     fn default() -> Self {
         Self {
             mass: 0.0,
-            momentum_velocity: Vector::zeros(),
-            psi_momentum_velocity: 0.0,
+            momentum_or_velocity: Vector::zeros(),
+            psi_momentum_or_velocity: 0.0,
             psi_mass: 0.0,
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
             projection_scaled_dir: Vector::zeros(),
+            cdf: NodeCdf::default(),
         }
     }
 }

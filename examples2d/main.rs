@@ -3,10 +3,13 @@
 extern crate nalgebra as na;
 
 mod basic2;
+mod cube_through_sand2;
+mod cutting_sand2;
 mod elasticity2;
 mod fluids2;
 mod helper;
 mod l_panel2;
+mod wheel2;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -56,6 +59,9 @@ pub fn main() {
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Basic", basic2::init_world),
+        ("Cube through sand", cube_through_sand2::init_world),
+        ("Cutting sand", cutting_sand2::init_world),
+        ("Wheel", wheel2::init_world),
         ("Elasticity", elasticity2::init_world),
         ("Fluids", fluids2::init_world),
     ];

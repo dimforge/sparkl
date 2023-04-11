@@ -4,7 +4,7 @@ use cuda_std::thread;
 
 const EMPTY: u64 = u64::MAX;
 
-fn hash(mut key: u64) -> u64 {
+pub fn hash(mut key: u64) -> u64 {
     key ^= key >> 16;
     key *= 0x85ebca6b;
     key ^= key >> 13;
@@ -14,7 +14,7 @@ fn hash(mut key: u64) -> u64 {
 }
 
 #[cfg_attr(not(target_os = "cuda"), derive(cust::DeviceCopy))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, bytemuck::Zeroable, Default)]
 #[repr(C)]
 pub struct GridHashMapEntry {
     pub key: BlockVirtualId,

@@ -1,3 +1,4 @@
+use crate::core::prelude::CdfColor;
 use crate::dynamics::{GridNode, ParticleModelHandle};
 use crate::geometry::SpGrid;
 use crate::math::{Matrix, Point, Real, Vector, DIM};
@@ -38,6 +39,11 @@ pub struct Particle {
     pub g: Real,
     pub phase: Real,
     pub phase_buf: Vector<Real>,
+
+    // CDF data
+    pub color: CdfColor,
+    pub distance: Real,
+    pub normal: Vector<Real>,
 
     // Plasticity and hardening.
     pub nacc_alpha: Real,
@@ -95,6 +101,9 @@ impl Particle {
             phase: 1.0,
             nacc_alpha: -0.01,
             phase_buf: na::zero(),
+            color: Default::default(),
+            distance: 0.0,
+            normal: na::zero(),
             plastic_hardening: 1.0,
             elastic_hardening: 1.0,
             log_vol_gain: 0.0,

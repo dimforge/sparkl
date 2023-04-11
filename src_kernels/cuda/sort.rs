@@ -152,14 +152,14 @@ pub unsafe fn merge_halo_blocks(mut grid: GpuGrid, remote_halo_blocks: *const Ha
             .mass
             .global_red_add(halo_block.cells[tid as usize].mass);
         target_node
-            .momentum_velocity
-            .global_red_add(halo_block.cells[tid as usize].momentum_velocity);
+            .momentum_or_velocity
+            .global_red_add(halo_block.cells[tid as usize].momentum_or_velocity);
         target_node
             .psi_mass
             .global_red_add(halo_block.cells[tid as usize].psi_mass);
         target_node
-            .psi_momentum_velocity
-            .global_red_add(halo_block.cells[tid as usize].psi_momentum_velocity);
+            .psi_momentum_or_velocity
+            .global_red_add(halo_block.cells[tid as usize].psi_momentum_or_velocity);
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::math::{Matrix, Point, Real, Vector};
+use crate::prelude::CdfColor;
 use crate::utils::RealStruct;
 #[cfg(not(feature = "std"))]
 use na::ComplexField;
@@ -146,6 +147,46 @@ impl Default for ParticlePhase {
             phase: 1.0,
             psi_pos: 0.0,
         }
+    }
+}
+
+#[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct ParticleCdf {
+    pub color: CdfColor,
+    pub distance: Real,
+    pub normal: Vector<Real>,
+}
+
+impl Default for ParticleCdf {
+    fn default() -> Self {
+        Self {
+            color: CdfColor::default(),
+            distance: 0.0,
+            normal: na::zero(),
+        }
+    }
+}
+
+impl ParticleCdf {
+    pub fn check_and_correct_penetration(&mut self, previous_cdf: &ParticleCdf) -> bool {
+        let shared_affinities = self.color.affinities() & previous_cdf.color.affinities();
+        let difference = (shared_affinities & self.color.tags())
+            ^ (shared_affinities & previous_cdf.color.tags());
+
+        let penetration = difference != 0;
+
+        // correct the penetration
+        if penetration {
+            self.color.0 = ((self.color.tags() ^ difference) << 16) | self.color.affinities();
+            self.color.1 = difference;
+            self.distance = -self.distance;
+            self.normal = -self.normal;
+        }
+
+        penetration
     }
 }
 

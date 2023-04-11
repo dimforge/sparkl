@@ -1,28 +1,33 @@
-use crate::math::{Real, Vector};
+use super::point_cloud_render::ParticleInstanceData;
+use crate::{
+    core::dynamics::ParticleData,
+    cuda::{CudaColliderOptions, HostSparseGridData},
+    dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet},
+    geometry::SpGrid,
+    kernels::NUM_CELL_PER_BLOCK,
+    math::{Real, Vector},
+    pipelines::MpmPipeline,
+    prelude::{MpmHooks, RigidWorld, SolverParameters},
+    third_party::rapier::visualization::{
+        cdf_color, cdf_show, visualization_ui, GridMode, ParticleMode, VisualizationMode, COLORS,
+    },
+};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
-use na::{Point3, Vector3};
-use rapier::geometry::ColliderSet;
-use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
-
-use super::point_cloud_render::ParticleInstanceData;
-use crate::core::dynamics::ParticleData;
-use crate::dynamics::{GridNode, GridNodeCgPhase, ParticleModelSet, ParticleSet};
-use crate::geometry::SpGrid;
-use crate::pipelines::MpmPipeline;
-use crate::prelude::{MpmHooks, RigidWorld, SolverParameters};
 use instant::Duration;
-use rapier::data::Coarena;
+use na::{vector, Point3, Vector3};
+use rapier::{data::Coarena, geometry::ColliderSet};
 
 #[cfg(feature = "dim3")]
 use super::point_cloud_render::ParticleInstanceMaterialData;
+use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
 #[cfg(feature = "cuda")]
 use {
     crate::{
         cuda::{
-            CudaColliderSet, CudaConstitutiveModel, CudaFailureModel, CudaMpmPipeline,
-            CudaMpmPipelineParameters, CudaParticleModelSet, CudaParticleSet, CudaPlasticModel,
-            CudaSparseGrid, CudaTimestepTimings, SharedCudaVec, SingleGpuMpmContext,
+            CudaMpmPipeline, CudaMpmPipelineParameters, CudaParticleModelSet, CudaParticleSet,
+            CudaRigidWorld, CudaSparseGrid, CudaTimestepTimings, SharedCudaVec,
+            SingleGpuMpmContext,
         },
         kernels::GpuTimestepLength,
     },
@@ -31,30 +36,6 @@ use {
         memory::{CopyDestination, LockedBuffer},
     },
 };
-
-/// How the fluids should be rendered by the testbed.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ParticlesRenderingMode {
-    /// Use a plain color.
-    StaticColor,
-    /// Use a red taint the closer to `max` the velocity is.
-    VelocityColor {
-        /// Fluids with a velocity smaller than this will not have any red taint.
-        min: f32,
-        /// Fluids with a velocity greater than this will be completely red.
-        max: f32,
-    },
-    DensityRatio {
-        max: f32,
-    },
-    Position {
-        mins: Vector<f32>,
-        maxs: Vector<f32>,
-    },
-    Blocks {
-        block_len: usize,
-    },
-}
 
 /// A user-defined callback executed at each frame.
 pub type UserCallback = Box<dyn FnMut(&mut Harness, &mut ParticleSet, f64)>;
@@ -72,7 +53,7 @@ struct CudaData {
     stream: cust::prelude::Stream,
     halo_stream: cust::prelude::Stream,
     module: cust::prelude::Module,
-    colliders: Option<CudaColliderSet>,
+    rigid_world: Option<CudaRigidWorld>,
     particles: CudaParticleSet,
     models: CudaParticleModelSet,
     grid: CudaSparseGrid,
@@ -91,7 +72,7 @@ impl CudaData {
 /// A plugin for rendering fluids with the Rapier testbed.
 pub struct MpmTestbedPlugin {
     pub render_boundary_particles: bool,
-    pub particles_rendering_mode: ParticlesRenderingMode,
+    pub visualization_mode: VisualizationMode,
     step_id: usize,
     pub callbacks: Vec<UserCallback>,
     step_time: f64,
@@ -116,6 +97,10 @@ pub struct MpmTestbedPlugin {
     cuda_vel_writeback: LockedBuffer<crate::core::dynamics::ParticleVelocity>,
     #[cfg(feature = "cuda")]
     cuda_phase_writeback: LockedBuffer<crate::core::dynamics::ParticlePhase>,
+    #[cfg(feature = "cuda")]
+    cuda_cdf_writeback: LockedBuffer<crate::core::dynamics::ParticleCdf>,
+    #[cfg(feature = "cuda")]
+    host_sparse_grid_data: HostSparseGridData,
     // wgpu_pipeline: WgpuMpmPipeline,
     // f2sn: HashMap<FluidHandle, Vec<EntityWithGraphics>>,
     // boundary2sn: HashMap<BoundaryHandle, Vec<EntityWithGraphics>>,
@@ -138,6 +123,7 @@ pub struct MpmTestbedPlugin {
     run_on_gpu: bool,
     #[cfg(feature = "cuda")]
     pub last_timing: Option<CudaTimestepTimings>,
+    pub collider_options: Vec<CudaColliderOptions>,
 }
 
 impl MpmTestbedPlugin {
@@ -209,6 +195,7 @@ impl MpmTestbedPlugin {
                         &comps.velocity,
                         &comps.volume,
                         &comps.phase,
+                        &comps.cdf,
                     )
                     .ok()?;
                     let particle_attribute_data = SharedCudaVec::from_slice(&comps.data).ok()?;
@@ -221,7 +208,7 @@ impl MpmTestbedPlugin {
                     let grid = CudaSparseGrid::new(cell_width).ok()?;
                     let colliders = boundaries
                         .as_ref()
-                        .and_then(|b| CudaColliderSet::from_collider_set(b, vec![]).ok());
+                        .and_then(|b| CudaRigidWorld::new(None, b, vec![], cell_width).ok());
                     let timestep_length = DeviceBox::new(&GpuTimestepLength::default()).ok()?;
                     let module = CudaMpmPipeline::load_module().unwrap();
 
@@ -233,7 +220,7 @@ impl MpmTestbedPlugin {
                         particles,
                         models,
                         grid,
-                        colliders,
+                        rigid_world: colliders,
                         timestep_length,
                         particle_attribute_data,
                     })
@@ -255,10 +242,7 @@ impl MpmTestbedPlugin {
         Self {
             step_id: 0,
             render_boundary_particles: false,
-            particles_rendering_mode: ParticlesRenderingMode::VelocityColor {
-                min: 0.0,
-                max: 10.0,
-            },
+            visualization_mode: VisualizationMode::default(),
             step_time: 0.0,
             simulated_time: 0.0,
             real_time: 0.0,
@@ -271,23 +255,31 @@ impl MpmTestbedPlugin {
             #[cfg(feature = "cuda")]
             cuda_callbacks: vec![],
             #[cfg(feature = "cuda")]
-            cuda_pos_writeback: cust::memory::LockedBuffer::new(
+            cuda_pos_writeback: LockedBuffer::new(
                 &crate::core::dynamics::ParticlePosition::default(),
                 0,
             )
             .expect("Failed to allocate locked staging buffer"),
             #[cfg(feature = "cuda")]
-            cuda_vel_writeback: cust::memory::LockedBuffer::new(
+            cuda_vel_writeback: LockedBuffer::new(
                 &crate::core::dynamics::ParticleVelocity::default(),
                 0,
             )
             .expect("Failed to allocate locked staging buffer"),
             #[cfg(feature = "cuda")]
-            cuda_phase_writeback: cust::memory::LockedBuffer::new(
+            cuda_phase_writeback: LockedBuffer::new(
                 &crate::core::dynamics::ParticlePhase::default(),
                 0,
             )
             .expect("Failed to allocate locked staging buffer"),
+            #[cfg(feature = "cuda")]
+            cuda_cdf_writeback: LockedBuffer::new(
+                &crate::core::dynamics::ParticleCdf::default(),
+                0,
+            )
+            .expect("Failed to allocate locked staging buffer"),
+            #[cfg(feature = "cuda")]
+            host_sparse_grid_data: HostSparseGridData::default(),
             // f2sn: HashMap::new(),
             // boundary2sn: HashMap::new(),
             // f2color: HashMap::new(),
@@ -305,6 +297,7 @@ impl MpmTestbedPlugin {
             run_on_gpu: true,
             #[cfg(feature = "cuda")]
             last_timing: None,
+            collider_options: vec![],
         }
     }
 
@@ -423,7 +416,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         #[cfg(feature = "cuda")]
         {
             for cuda_data in &mut self.cuda_data {
-                cuda_data.colliders = None;
+                cuda_data.rigid_world = None;
             }
         }
     }
@@ -452,12 +445,22 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
         #[cfg(feature = "cuda")]
         for cuda_data in &mut self.cuda_data {
-            if cuda_data.colliders.is_none() {
-                log::info!("Initializing {} cuda colliders.", physics.colliders.len());
-                cuda_data.make_current().unwrap();
-                cuda_data.colliders = Some(
-                    CudaColliderSet::from_collider_set(&physics.colliders, vec![])
-                        .expect("Failed to initialize the CUDA colliders."),
+            cuda_data.make_current().unwrap();
+
+            if let Some(rigid_world) = &mut cuda_data.rigid_world {
+                rigid_world
+                    .update_rigid_bodies_device(&physics.bodies)
+                    .expect("Failed to update the CUDA rigid world.");
+            } else {
+                log::info!("Initializing the CUDA rigid world.");
+                cuda_data.rigid_world = Some(
+                    CudaRigidWorld::new(
+                        Some(&physics.bodies),
+                        &physics.colliders,
+                        self.collider_options.clone(),
+                        self.sp_grid.cell_width(), // Todo: is this the proper way to retrieve cell width?
+                    )
+                    .expect("Failed to initialize the CUDA rigid world."),
                 );
             }
         }
@@ -490,7 +493,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         stream: &mut data.stream,
                         halo_stream: &mut data.halo_stream,
                         module: &mut data.module,
-                        colliders: data.colliders.as_mut().unwrap(),
+                        rigid_world: data.rigid_world.as_mut().unwrap(),
                         particles: &mut data.particles,
                         models: &mut data.models,
                         grid: &mut data.grid,
@@ -534,6 +537,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         unsafe { LockedBuffer::uninitialized(total_num_particles).unwrap() };
                     self.cuda_phase_writeback =
                         unsafe { LockedBuffer::uninitialized(total_num_particles).unwrap() };
+                    self.cuda_cdf_writeback =
+                        unsafe { LockedBuffer::uninitialized(total_num_particles).unwrap() };
                 }
                 let transfer_time = std::time::Instant::now();
 
@@ -568,18 +573,49 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             &mut self.cuda_phase_writeback[curr_shift..curr_shift + num_particles],
                         )
                         .expect("Could not retrieve particle data from the GPU.");
+                    context
+                        .particles
+                        .particle_cdf
+                        .buffer()
+                        .index(..num_particles)
+                        .copy_to(
+                            &mut self.cuda_cdf_writeback[curr_shift..curr_shift + num_particles],
+                        )
+                        .expect("Could not retrieve particle data from the GPU.");
                     curr_shift += num_particles;
+
+                    context.grid.copy_data_to_host(
+                        &mut self.host_sparse_grid_data,
+                        context.num_active_blocks,
+                    );
                 }
 
-                for (out_p, pos, vel, phase) in itertools::multizip((
+                // Todo: read back gpu rigid bodies
+
+                #[cfg(feature = "cuda")]
+                for cuda_data in &mut self.cuda_data {
+                    cuda_data.make_current().unwrap();
+
+                    if let Some(rigid_world) = &mut cuda_data.rigid_world {
+                        rigid_world
+                            .update_rigid_bodies_host(&mut physics.bodies)
+                            .expect("Failed to update the CUDA rigid world.");
+                    }
+                }
+
+                for (out_p, pos, vel, phase, cdf) in itertools::multizip((
                     self.particles.particles.iter_mut(),
                     self.cuda_pos_writeback.iter(),
                     self.cuda_vel_writeback.iter(),
                     self.cuda_phase_writeback.iter(),
+                    self.cuda_cdf_writeback.iter(),
                 )) {
                     out_p.position = pos.point;
                     out_p.velocity = vel.vector;
                     out_p.phase = phase.phase;
+                    out_p.color = cdf.color;
+                    out_p.normal = cdf.normal;
+                    out_p.distance = cdf.distance;
                 }
 
                 let transfer_time = transfer_time.elapsed();
@@ -608,10 +644,18 @@ impl TestbedPlugin for MpmTestbedPlugin {
     ) {
         self.step_id += 1;
 
-        // Update particles
-        if let Some(gfx) = &mut self.particle_gfx {
-            let mut instance_data = vec![];
+        let gfx = if let Some(gfx) = &mut self.particle_gfx {
+            gfx
+        } else {
+            return;
+        };
 
+        let mut instance_data = vec![];
+        let mode = &self.visualization_mode;
+        let grid_data = &self.host_sparse_grid_data;
+        let cell_width = self.sp_grid.cell_width();
+
+        if mode.show_particles {
             for (i, particle) in self.particles.particles.iter().enumerate() {
                 #[cfg(feature = "dim2")]
                 let pos_z = 0.0;
@@ -623,37 +667,39 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     pos_z,
                 ];
 
-                let color = match self.particles_rendering_mode {
-                    ParticlesRenderingMode::Blocks { block_len } => {
+                let (show, color) = match self.visualization_mode.particle_mode {
+                    ParticleMode::Blocks { block_len } => {
                         while self.blocks_color.len() <= self.particles.len() / block_len {
                             self.blocks_color.push((graphics.next_color() / 2.0).into());
                         }
 
-                        self.blocks_color[i / block_len]
+                        (true, self.blocks_color[i / block_len])
                     }
-                    ParticlesRenderingMode::Position { mins, maxs } => {
+                    ParticleMode::Position { mins, maxs } => {
                         let color = (particle.position - mins)
                             .coords
                             .component_div(&(maxs - mins))
                             .map(|e| (e * 30.0).floor() / 60.0);
                         #[cfg(feature = "dim2")]
                         let color = color.push(0.0);
-                        color.into()
+                        (true, color.into())
                     }
-                    ParticlesRenderingMode::DensityRatio { max } => {
+                    ParticleMode::DensityRatio { max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
                         let red = Vector3::x();
                         let blue = Vector3::z();
                         let ratio = particle.density_def_grad() / particle.density0();
 
-                        if ratio > 1.0 {
+                        let color = if ratio > 1.0 {
                             let coeff = (ratio - 1.0) / max;
                             base_color.coords.lerp(&red, coeff).into()
                         } else {
                             blue.lerp(&base_color.coords, ratio).into()
-                        }
+                        };
+
+                        (true, color)
                     }
-                    ParticlesRenderingMode::VelocityColor { min, max } => {
+                    ParticleMode::VelocityColor { min, max } => {
                         let base_color = *self.model_colors.get(particle.model).unwrap();
                         let color = if particle.failed {
                             [1.0, 1.0, 0.0]
@@ -682,76 +728,313 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             );
                             [lerp.x, lerp.y, lerp.z]
                         };
-                        color
+                        (true, color)
                     }
-                    ParticlesRenderingMode::StaticColor => self
-                        .model_colors
-                        .get(particle.model)
-                        .copied()
-                        .unwrap()
-                        .into(),
+                    ParticleMode::StaticColor => (
+                        true,
+                        self.model_colors
+                            .get(particle.model)
+                            .copied()
+                            .unwrap()
+                            .into(),
+                    ),
+                    ParticleMode::Cdf {
+                        show_affinity,
+                        show_tag,
+                        show_distance,
+                        show_normal,
+                        only_show_affine,
+                        tag_difference,
+                        normal_difference,
+                        max_distance,
+                    } => {
+                        let color = cdf_color(
+                            particle.color,
+                            particle.distance.abs(),
+                            show_affinity,
+                            show_tag,
+                            show_distance,
+                            tag_difference,
+                            max_distance,
+                            cell_width,
+                            mode.debug_single_collider,
+                            mode.collider_index,
+                        )
+                        .remove_row(3)
+                        .into();
+
+                        let show = cdf_show(
+                            particle.color,
+                            only_show_affine,
+                            mode.debug_single_collider,
+                            mode.collider_index,
+                        );
+
+                        (show, color)
+                    }
                 };
 
-                instance_data.push(ParticleInstanceData {
-                    position: pos.into(),
-                    #[cfg(feature = "dim2")]
-                    scale: (particle.volume0 / std::f32::consts::PI).sqrt() / 2.0,
-                    #[cfg(feature = "dim3")]
-                    scale: (particle.volume0 * 3.0 / (4.0 * std::f32::consts::PI)).cbrt() / 2.0,
-                    color: [color[0], color[1], color[2], 1.0],
-                });
-            }
-
-            #[cfg(feature = "dim2")]
-            {
-                for (data, gfx) in instance_data.iter().zip(gfx.iter()) {
-                    commands
-                        .entity(gfx.entity)
-                        .insert(Sprite {
-                            color: Color::rgb(data.color[0], data.color[1], data.color[2]),
-                            ..Default::default()
-                        })
-                        .insert(
-                            Transform::from_xyz(data.position.x, data.position.y, data.position.z)
-                                .with_scale(Vec3::splat(data.scale * 2.0)),
-                        );
+                if !show {
+                    continue;
                 }
 
-                if instance_data.len() > gfx.len() {
-                    for data in &instance_data[gfx.len()..] {
-                        // We are missing some sprites.
-                        let entity = commands
-                            .spawn_bundle(SpriteBundle {
-                                sprite: Sprite {
-                                    color: Color::rgb(data.color[0], data.color[1], data.color[2]),
-                                    ..Default::default()
-                                },
-                                transform: Transform::from_xyz(
-                                    data.position.x,
-                                    data.position.y,
-                                    data.position.z,
-                                )
-                                .with_scale(Vec3::splat(data.scale * 2.0)),
-                                ..Default::default()
-                            })
-                            .id();
-                        gfx.push(ParticleGfx { entity });
+                let color = [color[0], color[1], color[2], 1.0];
+
+                let scale = if mode.particle_volume {
+                    #[cfg(feature = "dim2")]
+                    {
+                        (particle.volume0 / std::f32::consts::PI).sqrt() / 2.0
+                    }
+                    #[cfg(feature = "dim3")]
+                    {
+                        (particle.volume0 * 3.0 / (4.0 * std::f32::consts::PI)).cbrt() / 2.0
                     }
                 } else {
-                    // Remove spurious entities.
-                    for gfx in &gfx[instance_data.len()..] {
-                        commands.entity(gfx.entity).despawn();
-                    }
+                    mode.particle_scale
+                };
 
-                    gfx.truncate(instance_data.len());
+                match mode.particle_mode {
+                    ParticleMode::Cdf {
+                        show_normal: true,
+                        normal_difference,
+                        ..
+                    } => {
+                        let normal = particle.normal;
+
+                        if normal == Vector::<Real>::zeros() {
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
+                                color,
+                            });
+                        } else {
+                            let pos1 = particle.position + normal * 0.005;
+                            let pos2 = particle.position - normal * 0.005;
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = pos1.z;
+                            let pos = [pos1.x as f32, pos1.y as f32, pos_z];
+
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
+                                color,
+                            });
+
+                            let intensity = 1.0 - normal_difference;
+                            let color = [
+                                color[0] * intensity,
+                                color[1] * intensity,
+                                color[2] * intensity,
+                                1.0,
+                            ];
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = pos2.z;
+                            let pos = [pos2.x as f32, pos2.y as f32, pos_z];
+
+                            instance_data.push(ParticleInstanceData {
+                                position: pos.into(),
+                                scale,
+                                color,
+                            });
+                        }
+                    }
+                    _ => {
+                        instance_data.push(ParticleInstanceData {
+                            position: pos.into(),
+                            scale,
+                            color,
+                        });
+                    }
+                };
+            }
+        }
+
+        if mode.show_rigid_particles {
+            if let Some(cuda_data) = self.cuda_data.get(0) {
+                if let Some(rigid_world) = &cuda_data.rigid_world {
+                    for particle in &rigid_world.rigid_particles {
+                        if mode.debug_single_collider
+                            && particle.collider_index != mode.collider_index
+                        {
+                            continue;
+                        }
+
+                        let collider = rigid_world.gpu_colliders[particle.collider_index as usize];
+
+                        let position = if let Some(rigid_body_index) = collider.rigid_body_index {
+                            let rigid_body =
+                                rigid_world.gpu_rigid_bodies[rigid_body_index as usize];
+                            rigid_body.position * collider.position
+                        } else {
+                            collider.position
+                        };
+
+                        let particle_position = position * particle.position;
+
+                        #[cfg(feature = "dim2")]
+                        let pos_z = 0.0;
+                        #[cfg(feature = "dim3")]
+                        let pos_z = particle_position.z;
+                        let pos = [
+                            particle_position.x as f32,
+                            particle_position.y as f32,
+                            pos_z,
+                        ];
+
+                        let color_index = particle.collider_index as usize % COLORS.len();
+                        let mut color = COLORS[color_index];
+                        let color_index = particle.color_index as usize;
+                        let intensity = 1.0
+                            - (color_index % mode.rigid_particle_len) as f32
+                                / mode.rigid_particle_len as f32;
+
+                        color = color * intensity;
+
+                        let scale = mode.rigid_particle_scale;
+
+                        instance_data.push(ParticleInstanceData {
+                            position: pos.into(),
+                            scale,
+                            color: color.into(),
+                        });
+                    }
                 }
             }
-            #[cfg(feature = "dim3")]
-            {
+        }
+
+        if mode.show_grid {
+            for block_header in grid_data.active_blocks.iter() {
+                let block_virtual = block_header.virtual_id;
+
+                if let Some(block_header) = grid_data.grid_hash_map.get(block_virtual) {
+                    let block_physical = block_header.to_physical();
+
+                    let color_index = (block_virtual.0 % COLORS.len() as u64) as usize;
+                    let block_color = COLORS[color_index];
+
+                    for i in 0..NUM_CELL_PER_BLOCK as usize {
+                        #[cfg(feature = "dim2")]
+                        let shift = vector![(i / 4) % 4, i % 4];
+                        #[cfg(feature = "dim3")]
+                        let shift = vector![(i / 16) % 4, (i / 4) % 4, i % 4];
+
+                        let node_physical = block_physical.node_id_unchecked(shift);
+
+                        if let Some(node) = grid_data.node_buffer.get(node_physical.0 as usize) {
+                            let node_coord =
+                                block_virtual.unpack_pos_on_signed_grid() * 4 + shift.cast::<i64>();
+                            let node_position = cell_width * node_coord.cast::<Real>();
+
+                            #[cfg(feature = "dim2")]
+                            let pos_z = 0.0;
+                            #[cfg(feature = "dim3")]
+                            let pos_z = node_position.z;
+                            let pos = [node_position.x as f32, node_position.y as f32, pos_z];
+
+                            let scale = mode.grid_scale;
+
+                            let (color, show) = match mode.grid_mode {
+                                GridMode::Blocks => (block_color, true),
+                                GridMode::Cdf {
+                                    show_affinity,
+                                    show_tag,
+                                    show_distance,
+                                    only_show_affine,
+                                    tag_difference,
+                                    max_distance,
+                                } => {
+                                    let color = cdf_color(
+                                        node.cdf.color,
+                                        node.cdf.unsigned_distance,
+                                        show_affinity,
+                                        show_tag,
+                                        show_distance,
+                                        tag_difference,
+                                        max_distance,
+                                        cell_width,
+                                        mode.debug_single_collider,
+                                        mode.collider_index,
+                                    );
+
+                                    let show = cdf_show(
+                                        node.cdf.color,
+                                        only_show_affine,
+                                        mode.debug_single_collider,
+                                        mode.collider_index,
+                                    );
+
+                                    (color, show)
+                                }
+                            };
+
+                            if show {
+                                instance_data.push(ParticleInstanceData {
+                                    position: pos.into(),
+                                    scale,
+                                    color: color.into(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            for (data, gfx) in instance_data.iter().zip(gfx.iter()) {
                 commands
                     .entity(gfx.entity)
-                    .insert(ParticleInstanceMaterialData(instance_data));
+                    .insert(Sprite {
+                        color: Color::rgb(data.color[0], data.color[1], data.color[2]),
+                        ..Default::default()
+                    })
+                    .insert(
+                        Transform::from_xyz(data.position.x, data.position.y, data.position.z)
+                            .with_scale(Vec3::splat(data.scale * 2.0)),
+                    );
             }
+
+            if instance_data.len() > gfx.len() {
+                for data in &instance_data[gfx.len()..] {
+                    // We are missing some sprites.
+                    let entity = commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::rgb(data.color[0], data.color[1], data.color[2]),
+                                ..Default::default()
+                            },
+                            transform: Transform::from_xyz(
+                                data.position.x,
+                                data.position.y,
+                                data.position.z,
+                            )
+                            .with_scale(Vec3::splat(data.scale * 2.0)),
+                            ..Default::default()
+                        })
+                        .id();
+                    gfx.push(ParticleGfx { entity });
+                }
+            } else {
+                // Remove spurious entities.
+                for gfx in &gfx[instance_data.len()..] {
+                    commands.entity(gfx.entity).despawn();
+                }
+
+                gfx.truncate(instance_data.len());
+            }
+        }
+        #[cfg(feature = "dim3")]
+        {
+            commands
+                .entity(gfx.entity)
+                .insert(ParticleInstanceMaterialData(instance_data));
         }
     }
 
@@ -770,6 +1053,17 @@ impl TestbedPlugin for MpmTestbedPlugin {
         {
             egui::Window::new("MPM Params").show(ui_context.ctx(), |ui| {
                 ui.checkbox(&mut self.run_on_gpu, "Run on GPU");
+                ui.checkbox(&mut self.cuda_pipeline.enable_cdf, "Enable CDF");
+
+                if let Some(data) = &mut self.cuda_data.get_mut(0) {
+                    if let Some(rigid_world) = &mut data.rigid_world {
+                        ui.add(
+                            egui::Slider::new(&mut rigid_world.penalty_stiffness, 0.0..=1.0e5)
+                                .text("Penalty Stiffness"),
+                        );
+                    }
+                }
+
                 if let Some(timing) = &self.last_timing {
                     ui.collapsing("Pipeline Timings", |ui| {
                         ui.label(format!("dt: {:.2}ms", timing.dt * 1000.0));
@@ -828,6 +1122,12 @@ impl TestbedPlugin for MpmTestbedPlugin {
                             ),
                         );
 
+                        let update_cdf = format_vals(device.updated_cdf);
+                        ui.colored_label(
+                            update_cdf.2,
+                            format!("update cdf: {:.2}ms ({}%)", update_cdf.0, update_cdf.1),
+                        );
+
                         let g2p2g = format_vals(device.g2p2g);
                         ui.colored_label(
                             g2p2g.2,
@@ -849,6 +1149,8 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     });
                 }
             });
+
+            visualization_ui(&mut self.visualization_mode, ui_context)
         }
     }
 

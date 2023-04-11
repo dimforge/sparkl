@@ -19,13 +19,13 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert(
         ColliderBuilder::cuboid(1000.0, ground_height)
             .translation(vector![0.0, ground_shift - ground_height])
-            .friction(0.0)
+            .friction(1.0)
             .build(),
     );
     colliders.insert(
         ColliderBuilder::cuboid(ground_height, 1000.0)
             .translation(vector![ground_shift - ground_height, 0.0])
-            .friction(0.0)
+            .friction(1.0)
             .build(),
     );
 
@@ -35,7 +35,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 ground_shift - ground_height + ground_shift * 8.0,
                 0.0
             ])
-            .friction(0.0)
+            .friction(1.0)
             .build(),
     );
 
