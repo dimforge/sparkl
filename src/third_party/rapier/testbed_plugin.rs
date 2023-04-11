@@ -1058,7 +1058,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                 if let Some(data) = &mut self.cuda_data.get_mut(0) {
                     if let Some(rigid_world) = &mut data.rigid_world {
                         ui.add(
-                            egui::Slider::new(&mut rigid_world.penalty_stiffness, 0.0..=1.0e6)
+                            egui::Slider::new(&mut rigid_world.penalty_stiffness, 0.0..=1.0e5)
                                 .text("Penalty Stiffness"),
                         );
                     }

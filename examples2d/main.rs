@@ -9,6 +9,7 @@ mod elasticity2;
 mod fluids2;
 mod helper;
 mod l_panel2;
+mod wheel2;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -60,6 +61,7 @@ pub fn main() {
         ("Basic", basic2::init_world),
         ("Cube through sand", cube_through_sand2::init_world),
         ("Cutting sand", cutting_sand2::init_world),
+        ("Wheel", wheel2::init_world),
         ("Elasticity", elasticity2::init_world),
         ("Fluids", fluids2::init_world),
     ];

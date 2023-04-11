@@ -195,7 +195,7 @@ impl CudaRigidWorld {
         let index_buffer = DeviceBuffer::from_slice(&indices)?;
 
         Ok(Self {
-            penalty_stiffness: 0.0,
+            penalty_stiffness: 10000.0,
             gpu_rigid_bodies,
             gpu_colliders,
             rigid_particles,

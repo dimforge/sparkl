@@ -255,7 +255,7 @@ impl GpuRigidBody {
         let torque_impulse = {
             let difference = particle_position - self.center_of_mass;
 
-            difference.x * impulse.y - difference.y + impulse.x
+            -difference.x * impulse.y + difference.y + impulse.x
         };
         #[cfg(feature = "dim3")]
         let torque_impulse = (particle_position - self.center_of_mass).cross(&impulse);
