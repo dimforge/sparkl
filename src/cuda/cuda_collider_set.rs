@@ -116,8 +116,6 @@ impl CudaColliderSet {
             }
         }
 
-        dbg!("Len after conversion: {}", gpu_colliders.len());
-
         let buffer = DeviceBuffer::from_slice(&gpu_colliders)?;
         Ok(Self {
             buffer,
