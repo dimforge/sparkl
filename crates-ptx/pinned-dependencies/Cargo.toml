@@ -7,6 +7,9 @@ description = "Auxiliary crate for pinning dependencies of dependencies for the 
 [lib]
 path = "./empty_lib.rs"
 
+# Some of these are dependencies of dependencies.
+# We need to fix the versions because cargo will chose semver compatible versions
+# which may not be compilible with the toolchain we're using.
 [dependencies]
 approx = "=0.5.1"
 arrayvec = "=0.7.2"
