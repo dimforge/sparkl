@@ -21,4 +21,5 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 
 [build-dependencies]
+pinned-dependencies = { path = "../pinned-dependencies" }
 cuda_builder = { version = "0.3" }
