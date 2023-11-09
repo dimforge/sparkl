@@ -3,6 +3,15 @@
 version = 3
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,6 +233,7 @@ name = "gen-ptx"
 version = "0.2.0"
 dependencies = [
  "cuda_builder",
+ "pinned-dependencies",
 ]
 
 [[package]]
@@ -320,6 +330,12 @@ checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
 dependencies = [
  "regex-automata",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mint"
@@ -517,6 +533,110 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0a7ae3ac2f1173085d398531c705756c94a4c56843785df85a60c1a0afac116"
 
 [[package]]
+name = "pinned-dependencies"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "autocfg",
+ "bitflags",
+ "build-helper",
+ "bytemuck",
+ "bytemuck_derive",
+ "cc",
+ "cfg-if",
+ "cuda_builder",
+ "cuda_std",
+ "cuda_std_macros",
+ "curl",
+ "curl-sys",
+ "cust",
+ "cust_core",
+ "cust_derive",
+ "cust_raw",
+ "downcast-rs",
+ "either",
+ "filetime",
+ "find_cuda_helper",
+ "glam",
+ "glob",
+ "half",
+ "itoa",
+ "jobserver",
+ "lazy_static",
+ "libc",
+ "libm",
+ "libz-sys",
+ "log",
+ "lzma-sys",
+ "matchers",
+ "mint",
+ "nu-ansi-term",
+ "num-complex",
+ "num-derive",
+ "num-integer",
+ "num-traits",
+ "nvvm",
+ "once_cell",
+ "oorandom",
+ "openssl-probe",
+ "openssl-sys",
+ "overload",
+ "paste",
+ "pin-project-lite",
+ "pkg-config",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "regex-automata",
+ "regex-syntax",
+ "rustc-demangle",
+ "rustc_codegen_nvvm",
+ "rustc_codegen_nvvm_macros",
+ "rustc_version",
+ "ryu",
+ "schannel",
+ "semver 0.6.0",
+ "semver-parser",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sharded-slab",
+ "smallvec",
+ "socket2",
+ "sparkl2d-core",
+ "sparkl2d-kernels",
+ "sparkl3d-core",
+ "sparkl3d-kernels",
+ "syn",
+ "tar",
+ "thread_local",
+ "tracing",
+ "tracing-attributes",
+ "tracing-core",
+ "tracing-log",
+ "tracing-subscriber",
+ "typenum",
+ "unicode-ident",
+ "valuable",
+ "vcpkg",
+ "winapi",
+ "winapi-i686-pc-windows-gnu",
+ "winapi-x86_64-pc-windows-gnu",
+ "windows-sys",
+ "windows_aarch64_gnullvm",
+ "windows_aarch64_msvc",
+ "windows_i686_gnu",
+ "windows_i686_msvc",
+ "windows_x86_64_gnu",
+ "windows_x86_64_gnullvm",
+ "windows_x86_64_msvc",
+ "xattr",
+ "xz",
+ "xz2",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -555,6 +675,8 @@ version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
 dependencies = [
+ "aho-corasick",
+ "memchr",
  "regex-syntax",
 ]
 
