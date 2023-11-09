@@ -2,6 +2,7 @@
 
 extern crate nalgebra as na;
 
+mod conveyor_belt3;
 mod cube_through_sand3;
 mod cutting_sand3;
 mod fluids3;
@@ -62,6 +63,7 @@ pub fn main() {
         ("Wheel", wheel3::init_world),
         ("Elasticity", sand3::init_world),
         ("Fluids", fluids3::init_world),
+        ("Conveyor belt", conveyor_belt3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
