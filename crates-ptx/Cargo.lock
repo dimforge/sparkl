@@ -345,9 +345,9 @@ checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "nalgebra"
-version = "0.32.1"
+version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6515c882ebfddccaa73ead7320ca28036c4bc84c9bcca3cc0cbba8efe89223a"
+checksum = "307ed9b18cc2423f29e83f84fd23a8e73628727990181f18641a8b5dc2ab1caa"
 dependencies = [
  "approx",
  "bytemuck",
@@ -363,9 +363,9 @@ dependencies = [
 
 [[package]]
 name = "nalgebra-macros"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d232c68884c0c99810a5a4d333ef7e47689cfd0edc85efc9e54e1e6bf5212766"
+checksum = "91761aed67d03ad966ef783ae962ef9bbaca728d2dd7ceb7939ec110fffad998"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -482,9 +482,9 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "parry2d"
-version = "0.13.0"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2342b33d77a0393879b1b85eac2a30cc4b36d10b30e111f55a5e9280cf5eb87"
+checksum = "104ae65232e20477a98f9f1e75ca9850eae24a2ea846a2b1a0af03ad752136ce"
 dependencies = [
  "approx",
  "arrayvec",
@@ -502,9 +502,9 @@ dependencies = [
 
 [[package]]
 name = "parry3d"
-version = "0.13.0"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2852a4cf8f65177e6f3755a725fdc0a433cca4fa6a97a07ae8c8abd7a4b52ea"
+checksum = "b55dc0e6db79bddbc5fd583569f7356cdcc63e1e9b2b93a9ab70dd8e717160e0"
 dependencies = [
  "approx",
  "arrayvec",
@@ -740,7 +740,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
 dependencies = [
- "semver 1.0.16",
+ "semver 1.0.20",
 ]
 
 [[package]]
@@ -769,9 +769,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.16"
+version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58bc9567378fc7690d6b2addae4e60ac2eeea07becb2c64b9f218b53865cba2a"
+checksum = "836fa6a3e1e547f9a2c4040802ec865b5d85f4014efe00555d7090a3dcaa1090"
 
 [[package]]
 name = "semver-parser"
@@ -821,9 +821,9 @@ dependencies = [
 
 [[package]]
 name = "simba"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50582927ed6f77e4ac020c057f37a268fc6aebc29225050365aacbb9deeeddc4"
+checksum = "061507c94fc6ab4ba1c9a0305018408e312e17c041eb63bef8aa726fa33aceae"
 dependencies = [
  "approx",
  "cuda_std",
@@ -1020,9 +1020,9 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "vek"
-version = "0.15.9"
+version = "0.15.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02eeed9a6ab91448e2aea59ffa21e644e22dc373ab0a187ac34ada660c2cb9de"
+checksum = "8085882662f9bc47fc8b0cdafa5e19df8f592f650c02b9083da8d45ac9eebd17"
 dependencies = [
  "approx",
  "num-integer",

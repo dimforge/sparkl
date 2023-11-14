@@ -108,11 +108,12 @@ fn update_single_cell(
                     }
                 }
                 BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
-                    if let Some((mut normal, dist)) =
+                    if let Some((mut normal, mut dist)) =
                         Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
                     {
                         if is_inside {
                             normal = -normal;
+                            dist = 0.0;
                         }
 
                         #[cfg(feature = "dim2")]
@@ -125,25 +126,29 @@ fn update_single_cell(
 
                         if apply_friction {
                             let normal_vel = cell_velocity.dot(&normal);
+                            let dist_with_margin = (dist - cell_width * 0.5).max(0.0);
 
-                            if normal_vel < 0.0 {
-                                let dist_with_margin = dist - cell_width;
-                                if is_inside || dist_with_margin <= 0.0 {
-                                    let tangent_vel =
-                                        cell_velocity - normal_vel * normal.into_inner();
-                                    let tangent_vel_norm = tangent_vel.norm();
+                            if -normal_vel * dt > dist_with_margin {
+                                // NOTE: if we enter this code, normal_vel is negative.
+                                let tangent_vel = cell_velocity - normal_vel * normal.into_inner();
+                                let tangent_vel_norm = tangent_vel.norm();
 
-                                    cell_velocity = tangent_vel;
+                                let new_normal_vel = normal_vel.max(-dist_with_margin / dt);
 
-                                    if tangent_vel_norm > 1.0e-10 {
-                                        let friction = collider.friction;
-                                        cell_velocity = tangent_vel / tangent_vel_norm
-                                            * (tangent_vel_norm + normal_vel * friction).max(0.0);
-                                    }
-                                } else if -normal_vel * dt > dist_with_margin {
-                                    cell_velocity -=
-                                        (dist_with_margin / dt + normal_vel) * normal.into_inner();
-                                }
+                                // NOTE: removed_normal_vel is always positive.
+                                let removed_normal_vel = new_normal_vel - normal_vel;
+
+                                let new_tangent_vel = if tangent_vel_norm > 1.0e-6 {
+                                    tangent_vel / tangent_vel_norm
+                                        * (tangent_vel_norm
+                                            - removed_normal_vel * collider.friction)
+                                            .max(0.0)
+                                } else {
+                                    Vector::zeros()
+                                };
+
+                                cell_velocity =
+                                    new_normal_vel * normal.into_inner() + new_tangent_vel;
                             }
                         }
                     }
