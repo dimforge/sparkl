@@ -13,9 +13,12 @@ use crate::{
     },
 };
 use bevy::prelude::*;
+use bevy_egui::egui::ecolor::Hsva;
+use bevy_egui::egui::Color32;
 use bevy_egui::{egui, EguiContext};
 use instant::Duration;
 use na::{vector, Point3, Vector3};
+use parry::partitioning::IndexedData;
 use rapier::{data::Coarena, geometry::ColliderSet};
 
 #[cfg(feature = "dim3")]
@@ -112,6 +115,7 @@ pub struct MpmTestbedPlugin {
     grid_gfx: Option<ParticleGfx>,
     models: ParticleModelSet,
     pub particles: ParticleSet,
+    hidden_artifacts: Vec<Option<[f32; 3]>>,
     // pub wgpu_particles: WParticleDataSet,
     boundaries: Option<ColliderSet>,
     model_colors: Coarena<Point3<f32>>,
@@ -240,6 +244,7 @@ impl MpmTestbedPlugin {
         let cuda_pipeline = CudaMpmPipeline::new();
 
         Self {
+            hidden_artifacts: vec![],
             step_id: 0,
             render_boundary_particles: false,
             visualization_mode: VisualizationMode::default(),
@@ -363,9 +368,17 @@ impl TestbedPlugin for MpmTestbedPlugin {
         /*
          * Initialize the colors.
          */
+        let rock_colors = [
+            Point3::new(51.0, 25.0, 0.0) / 256.0,
+            Point3::new(204.0, 102.0, 0.0) / 256.0,
+            Point3::new(102.0, 51.0, 0.0) / 256.0,
+            Point3::new(153.0, 76.0, 0.0) / 256.0,
+        ];
         for (index, _) in self.models.iter() {
             if self.model_colors.get(index).is_none() {
-                self.model_colors.insert(index, graphics.next_color());
+                self.model_colors
+                    .insert(index, rock_colors[index.index() % 4]);
+                // self.model_colors.insert(index, graphics.next_color());
             }
         }
         #[cfg(feature = "dim2")]
@@ -657,11 +670,14 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
         if mode.show_particles {
             for (i, particle) in self.particles.particles.iter().enumerate() {
+                if self.hidden_artifacts.len() <= i {
+                    self.hidden_artifacts.push(None);
+                }
                 #[cfg(feature = "dim2")]
                 let pos_z = 0.0;
                 #[cfg(feature = "dim3")]
                 let pos_z = particle.position.z;
-                let pos = [
+                let mut pos = [
                     particle.position.x as f32,
                     particle.position.y as f32,
                     pos_z,
@@ -773,6 +789,23 @@ impl TestbedPlugin for MpmTestbedPlugin {
                         (show, color)
                     }
                 };
+
+                let color = Hsva::new(
+                    ((i as f32 / self.particles.len() as f32) * 10.0).round() / 10.0,
+                    0.75,
+                    0.75,
+                    1.0,
+                )
+                .to_rgb();
+
+                if self.hidden_artifacts[i].is_none() && particle.velocity.y > 4.0 {
+                    pos[1] -= particle.velocity.y * 0.016;
+                    self.hidden_artifacts[i] = Some(pos);
+                }
+
+                if let Some(static_pos) = self.hidden_artifacts[i] {
+                    pos = static_pos
+                }
 
                 if !show {
                     continue;

@@ -271,8 +271,11 @@ impl CudaRigidWorld {
             // dbg!(gpu_rigid_body.angvel_update - gpu_rigid_body.angvel);
 
             let rigid_body = rigid_bodies.get_mut(*handle).unwrap();
-            rigid_body.set_linvel(gpu_rigid_body.linvel_update, true);
-            rigid_body.set_angvel(gpu_rigid_body.angvel_update, true);
+
+            if rigid_body.is_dynamic() {
+                rigid_body.set_linvel(gpu_rigid_body.linvel_update, true);
+                rigid_body.set_angvel(gpu_rigid_body.angvel_update, true);
+            }
         }
 
         Ok(())
