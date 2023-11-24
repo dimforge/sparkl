@@ -10,8 +10,8 @@ use bevy::{
         mesh::{GpuBufferInfo, MeshVertexBufferLayout},
         render_asset::RenderAssets,
         render_phase::{
-            AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
-            SetItemPipeline, TrackedRenderPass,
+            AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
+            RenderPhase, SetItemPipeline, TrackedRenderPass,
         },
         render_resource::*,
         renderer::RenderDevice,
@@ -195,7 +195,7 @@ type DrawCustom = (
 
 pub struct DrawParticlesInstanced;
 
-impl EntityRenderCommand for DrawParticlesInstanced {
+impl<P: PhaseItem> RenderCommand<P> for DrawParticlesInstanced {
     type Param = (
         SRes<RenderAssets<Mesh>>,
         SQuery<Read<Handle<Mesh>>>,
@@ -203,13 +203,14 @@ impl EntityRenderCommand for DrawParticlesInstanced {
     );
     #[inline]
     fn render<'w>(
+        _item: &P,
         _view: Entity,
-        item: Entity,
+        entity: Entity,
         (meshes, mesh_query, instance_buffer_query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let mesh_handle = mesh_query.get(item).unwrap();
-        let instance_buffer = instance_buffer_query.get_inner(item).unwrap();
+        let mesh_handle = mesh_query.get(entity).unwrap();
+        let instance_buffer = instance_buffer_query.get_inner(entity).unwrap();
 
         let gpu_mesh = match meshes.into_inner().get(mesh_handle) {
             Some(gpu_mesh) => gpu_mesh,
@@ -234,6 +235,10 @@ impl EntityRenderCommand for DrawParticlesInstanced {
         }
         RenderCommandResult::Success
     }
+
+    type ViewWorldQuery = Entity;
+
+    type ItemWorldQuery = Entity;
 }
 
 pub fn init_renderer(app: &mut App) {
