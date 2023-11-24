@@ -30,9 +30,11 @@ impl ExtractComponent for ParticleInstanceMaterialData {
     type Query = &'static ParticleInstanceMaterialData;
     type Filter = ();
 
-    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        ParticleInstanceMaterialData(item.0.clone())
+    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Option<Self> {
+        Some(ParticleInstanceMaterialData(item.0.clone()))
     }
+
+    type Out = Self;
 }
 
 pub struct ParticleMaterialPlugin;
