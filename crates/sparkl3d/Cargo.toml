@@ -39,7 +39,7 @@ required-features = [ "dim3", "f32" ]
 sparkl3d-core = "0.2"
 nalgebra = "0.32"
 parry3d = "0.13"
-rapier3d = "0.17"
+rapier3d = "0.17.2"
 instant = { version = "0.1", features = [ "now" ] }
 bitflags = "1"
 anyhow = "1"
