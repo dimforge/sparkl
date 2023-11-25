@@ -1,6 +1,6 @@
 use crate::math::{Real, Vector};
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContexts};
 use na::{Point3, Vector3};
 use rapier::geometry::ColliderSet;
 use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
@@ -721,7 +721,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
                     for data in &instance_data[gfx.len()..] {
                         // We are missing some sprites.
                         let entity = commands
-                            .spawn_bundle(SpriteBundle {
+                            .spawn(SpriteBundle {
                                 sprite: Sprite {
                                     color: Color::rgb(data.color[0], data.color[1], data.color[2]),
                                     ..Default::default()
@@ -757,7 +757,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
 
     fn update_ui(
         &mut self,
-        ui_context: &EguiContext,
+        ui_context: &EguiContexts,
         _harness: &mut Harness,
         _graphics: &mut GraphicsManager,
         _commands: &mut Commands,

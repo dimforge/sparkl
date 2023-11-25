@@ -1,3 +1,5 @@
+use std::fs::read_to_string;
+
 use bevy::{
     core_pipeline::core_3d::Opaque3d,
     ecs::system::{lifetimeless::*, SystemParamItem},
@@ -16,7 +18,7 @@ use bevy::{
         render_resource::*,
         renderer::RenderDevice,
         view::{ExtractedView, Msaa},
-        RenderApp, RenderStage,
+        Render, RenderApp, RenderSet,
     },
 };
 use bytemuck::{Pod, Zeroable};
@@ -46,13 +48,20 @@ impl Plugin for ParticleMaterialPlugin {
             .add_render_command::<Opaque3d, DrawCustom>()
             .init_resource::<ParticleRenderPipeline>()
             .init_resource::<SpecializedMeshPipelines<ParticleRenderPipeline>>()
-            .add_system_to_stage(RenderStage::Queue, queue_custom)
-            .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
+            // TODO: maybe wrong
+            .add_systems(Render, queue_custom)
+            .add_systems(Render, prepare_instance_buffers);
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
-        let wgsl_src = include_str!("shaders/instancing3d.wgsl");
 
-        shaders.set_untracked(PARTICLE_SHADER_HANDLE, Shader::from_wgsl(wgsl_src));
+        const WGSL_PATH: &'static str = "shaders/instancing3d.wgsl";
+        shaders.set_untracked(
+            PARTICLE_SHADER_HANDLE,
+            Shader::from_wgsl(
+                read_to_string(WGSL_PATH).expect("Couldn't read particle shader"),
+                WGSL_PATH,
+            ),
+        );
     }
 }
 
@@ -82,7 +91,7 @@ fn queue_custom(
         .get_id::<DrawCustom>()
         .unwrap();
 
-    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples);
+    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples());
 
     for (view, mut transparent_phase) in views.iter_mut() {
         let view_matrix = view.transform.compute_matrix();
@@ -178,10 +187,10 @@ impl SpecializedMeshPipeline for ParticleRenderPipeline {
             ],
         });
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
-        descriptor.layout = Some(vec![
+        descriptor.layout = vec![
             self.mesh_pipeline.view_layout.clone(),
-            self.mesh_pipeline.mesh_layout.clone(),
-        ]);
+            self.mesh_pipeline.mesh_layouts.model_only.clone(),
+        ];
         descriptor.label = Some("particles_pipeline".into());
 
         Ok(descriptor)
@@ -231,8 +240,8 @@ impl<P: PhaseItem> RenderCommand<P> for DrawParticlesInstanced {
                 pass.set_index_buffer(buffer.slice(..), 0, *index_format);
                 pass.draw_indexed(0..*count, 0, 0..instance_buffer.length as u32);
             }
-            GpuBufferInfo::NonIndexed { vertex_count } => {
-                pass.draw_indexed(0..*vertex_count, 0, 0..instance_buffer.length as u32);
+            GpuBufferInfo::NonIndexed => {
+                pass.draw(0..gpu_mesh.vertex_count, 0..instance_buffer.length as u32);
             }
         }
         RenderCommandResult::Success
