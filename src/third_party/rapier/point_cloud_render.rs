@@ -196,10 +196,6 @@ impl SpecializedMeshPipeline for ParticleRenderPipeline {
             ],
         });
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
-        descriptor.layout = vec![
-            self.mesh_pipeline.view_layout.clone(),
-            self.mesh_pipeline.mesh_layouts.model_only.clone(),
-        ];
         descriptor.label = Some("particles_pipeline".into());
 
         Ok(descriptor)
