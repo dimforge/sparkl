@@ -4,6 +4,7 @@ use bevy_egui::{egui, EguiContexts};
 use na::{Point3, Vector3};
 use rapier::geometry::ColliderSet;
 use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
+use std::convert::TryInto;
 
 use super::point_cloud_render::ParticleInstanceData;
 use crate::core::dynamics::ParticleData;
@@ -384,10 +385,14 @@ impl TestbedPlugin for MpmTestbedPlugin {
         {
             let entity = _commands
                 .spawn((
-                    _meshes.add(Mesh::from(shape::Icosphere {
-                        radius: 1.0,
-                        subdivisions: 5,
-                    })),
+                    _meshes.add(
+                        shape::Icosphere {
+                            radius: 1.0,
+                            subdivisions: 5,
+                        }
+                        .try_into()
+                        .unwrap(),
+                    ),
                     Transform::from_xyz(0.0, 0.0, 0.0),
                     GlobalTransform::default(),
                     ParticleInstanceMaterialData(vec![]),
