@@ -53,7 +53,7 @@ impl Plugin for ParticleMaterialPlugin {
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
 
-        const WGSL_PATH: &'static str = "shaders/instancing3d.wgsl";
+        const WGSL_PATH: &'static str = "src/third_party/rapier/shaders/instancing3d.wgsl";
         shaders.set_untracked(
             PARTICLE_SHADER_HANDLE,
             Shader::from_wgsl(
