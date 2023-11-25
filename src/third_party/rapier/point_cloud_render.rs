@@ -47,6 +47,7 @@ impl Plugin for ParticleMaterialPlugin {
         app.sub_app_mut(RenderApp)
             .add_render_command::<Opaque3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<ParticleRenderPipeline>>()
+            .insert_resource(Msaa::default())
             // TODO: maybe wrong
             .add_systems(Render, queue_custom)
             .add_systems(Render, prepare_instance_buffers);
