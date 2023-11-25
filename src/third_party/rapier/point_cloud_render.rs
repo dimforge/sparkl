@@ -46,7 +46,6 @@ impl Plugin for ParticleMaterialPlugin {
         app.add_plugin(ExtractComponentPlugin::<ParticleInstanceMaterialData>::default());
         app.sub_app_mut(RenderApp)
             .add_render_command::<Opaque3d, DrawCustom>()
-            .init_resource::<ParticleRenderPipeline>()
             .init_resource::<SpecializedMeshPipelines<ParticleRenderPipeline>>()
             // TODO: maybe wrong
             .add_systems(Render, queue_custom)
@@ -62,6 +61,11 @@ impl Plugin for ParticleMaterialPlugin {
                 WGSL_PATH,
             ),
         );
+    }
+
+    fn finish(&self, app: &mut App) {
+        app.sub_app_mut(RenderApp)
+            .init_resource::<ParticleRenderPipeline>();
     }
 }
 
