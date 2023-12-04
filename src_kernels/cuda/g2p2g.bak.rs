@@ -35,7 +35,7 @@ struct GridGatherData {
 }
 
 // This MUST be called with a block size equal to G2P2G_THREADS
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn g2p2g(
     dt: Real,
     particles_status: *mut ParticleStatus,

@@ -1,6 +1,6 @@
 use cuda_std::{shared_array, thread};
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn add_data_grp(data: *mut u32, data_len: u32, rhs: *mut u32) {
     let id = thread::index_1d();
     let bid = thread::block_idx_x();
@@ -13,7 +13,7 @@ pub unsafe fn add_data_grp(data: *mut u32, data_len: u32, rhs: *mut u32) {
 // TODO: Benchmark and see if we can do 1024 instead of 512.
 // TODO: use dynamic shared memory instead.
 // TODO: optimize to avoid bank conflicts.
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn prefix_sum_512(data: *mut u32, data_len: u32, aux: *mut u32) {
     const THREADS: usize = 512;
     let thread_id = thread::thread_idx_x();

@@ -61,7 +61,7 @@ impl Default for InterpolatedParticleData {
     }
 }
 
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn g2p2g(
     dt: Real,
     colliders_ptr: *const GpuCollider,

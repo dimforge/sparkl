@@ -87,7 +87,7 @@ impl GridHashMap {
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn reset_hashmap(grid: GridHashMap) {
     let id = thread::index();
     if (id as u32) < grid.capacity {

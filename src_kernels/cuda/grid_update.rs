@@ -7,7 +7,7 @@ use na::{vector, Unit};
 use sparkl_core::dynamics::solver::BoundaryHandling;
 use sparkl_core::math::{Point, Real, Vector};
 
-#[kernel] // NOTE: must be called with 4x4x4 (in 3D) or 4x4 (in 2D) threads per block.
+#[cfg_attr(target_os = "cuda", kernel)] // NOTE: must be called with 4x4x4 (in 3D) or 4x4 (in 2D) threads per block.
 pub unsafe fn grid_update(
     dt: Real,
     mut next_grid: GpuGrid,

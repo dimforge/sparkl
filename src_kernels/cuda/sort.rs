@@ -55,7 +55,7 @@ impl Default for ActiveBlockHeader {
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn touch_particle_blocks(
     particles: *mut ParticlePosition,
     particles_len: u32,
@@ -71,7 +71,7 @@ pub unsafe fn touch_particle_blocks(
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn tag_halo_blocks(
     mut grid: GpuGrid,
     remote_active_blocks: *const ActiveBlockHeader,
@@ -95,7 +95,7 @@ pub unsafe fn tag_halo_blocks(
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn tag_halo_neighbors(mut grid: GpuGrid, num_active_blocks: u32) {
     let id = thread::index();
     if id < num_active_blocks {
@@ -113,7 +113,7 @@ pub unsafe fn tag_halo_neighbors(mut grid: GpuGrid, num_active_blocks: u32) {
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn copy_halo_to_staging(
     grid: GpuGrid,
     staging_buffer: *mut HaloBlockData,
@@ -139,7 +139,7 @@ pub unsafe fn copy_halo_to_staging(
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn merge_halo_blocks(mut grid: GpuGrid, remote_halo_blocks: *const HaloBlockData) {
     let bid = thread::block_idx_x();
     let tid = thread::thread_idx_x();
@@ -163,7 +163,7 @@ pub unsafe fn merge_halo_blocks(mut grid: GpuGrid, remote_halo_blocks: *const Ha
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn update_block_particle_count(
     particles: *mut ParticlePosition,
     particles_len: u32,
@@ -180,7 +180,7 @@ pub unsafe fn update_block_particle_count(
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn copy_particles_len_to_scan_value(grid: GpuGrid, scan_values: *mut u32) {
     let id = thread::index();
     if id < grid.num_active_blocks() {
@@ -189,7 +189,7 @@ pub unsafe fn copy_particles_len_to_scan_value(grid: GpuGrid, scan_values: *mut 
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn copy_scan_values_to_first_particles(mut grid: GpuGrid, scan_values: *const u32) {
     let id = thread::index();
     if id < grid.num_active_blocks() {
@@ -198,7 +198,7 @@ pub unsafe fn copy_scan_values_to_first_particles(mut grid: GpuGrid, scan_values
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn finalize_particles_sort(
     particles: *mut ParticlePosition,
     particles_len: u32,
@@ -223,7 +223,7 @@ pub unsafe fn finalize_particles_sort(
 /*
  * Kernel for handling block multiplicity for mapping between grid blocks and GPU dispatch blocks.
  */
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn write_blocks_multiplicity_to_scan_value(
     grid: GpuGrid,
     scan_values: *mut u32,
@@ -245,7 +245,7 @@ pub unsafe fn write_blocks_multiplicity_to_scan_value(
     }
 }
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn init_gpu_dispatch_blocks_mapping(
     grid: GpuGrid,
     not_halo_scan_values: *mut u32,
