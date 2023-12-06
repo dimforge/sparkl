@@ -76,7 +76,7 @@ impl CorotatedLinearElasticity {
 
     pub fn pos_energy(&self, deformation_gradient: Matrix<Real>, elastic_hardening: Real) -> Real {
         let j = deformation_gradient.determinant();
-        let mut pos_def = deformation_gradient.svd_unordered(true, true);
+        let mut pos_def = deformation_gradient.svd_unordered(true, true); // TODO: why compute U and V?
         pos_def.singular_values.apply(|e| *e = (*e - 1.0).max(0.0));
 
         let pos_dev_part = self.mu * elastic_hardening * pos_def.singular_values.norm_squared();
