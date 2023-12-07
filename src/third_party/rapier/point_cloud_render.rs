@@ -1,3 +1,5 @@
+use std::fs::read_to_string;
+
 use bevy::{
     core_pipeline::core_3d::Opaque3d,
     ecs::system::{lifetimeless::*, SystemParamItem},
@@ -10,13 +12,13 @@ use bevy::{
         mesh::{GpuBufferInfo, MeshVertexBufferLayout},
         render_asset::RenderAssets,
         render_phase::{
-            AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
-            SetItemPipeline, TrackedRenderPass,
+            AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
+            RenderPhase, SetItemPipeline, TrackedRenderPass,
         },
         render_resource::*,
         renderer::RenderDevice,
         view::{ExtractedView, Msaa},
-        RenderApp, RenderStage,
+        Render, RenderApp, RenderSet,
     },
 };
 use bytemuck::{Pod, Zeroable};
@@ -30,9 +32,11 @@ impl ExtractComponent for ParticleInstanceMaterialData {
     type Query = &'static ParticleInstanceMaterialData;
     type Filter = ();
 
-    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        ParticleInstanceMaterialData(item.0.clone())
+    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Option<Self> {
+        Some(ParticleInstanceMaterialData(item.0.clone()))
     }
+
+    type Out = Self;
 }
 
 pub struct ParticleMaterialPlugin;
@@ -42,15 +46,31 @@ impl Plugin for ParticleMaterialPlugin {
         app.add_plugin(ExtractComponentPlugin::<ParticleInstanceMaterialData>::default());
         app.sub_app_mut(RenderApp)
             .add_render_command::<Opaque3d, DrawCustom>()
-            .init_resource::<ParticleRenderPipeline>()
             .init_resource::<SpecializedMeshPipelines<ParticleRenderPipeline>>()
-            .add_system_to_stage(RenderStage::Queue, queue_custom)
-            .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
+            .insert_resource(Msaa::default())
+            .add_systems(
+                Render,
+                (
+                    queue_custom.in_set(RenderSet::Queue),
+                    prepare_instance_buffers.in_set(RenderSet::Prepare),
+                ),
+            );
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
-        let wgsl_src = include_str!("shaders/instancing3d.wgsl");
 
-        shaders.set_untracked(PARTICLE_SHADER_HANDLE, Shader::from_wgsl(wgsl_src));
+        const WGSL_PATH: &'static str = "src/third_party/rapier/shaders/instancing3d.wgsl";
+        shaders.set_untracked(
+            PARTICLE_SHADER_HANDLE,
+            Shader::from_wgsl(
+                read_to_string(WGSL_PATH).expect("Couldn't read particle shader"),
+                WGSL_PATH,
+            ),
+        );
+    }
+
+    fn finish(&self, app: &mut App) {
+        app.sub_app_mut(RenderApp)
+            .init_resource::<ParticleRenderPipeline>();
     }
 }
 
@@ -80,7 +100,7 @@ fn queue_custom(
         .get_id::<DrawCustom>()
         .unwrap();
 
-    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples);
+    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples());
 
     for (view, mut transparent_phase) in views.iter_mut() {
         let view_matrix = view.transform.compute_matrix();
@@ -176,10 +196,6 @@ impl SpecializedMeshPipeline for ParticleRenderPipeline {
             ],
         });
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
-        descriptor.layout = Some(vec![
-            self.mesh_pipeline.view_layout.clone(),
-            self.mesh_pipeline.mesh_layout.clone(),
-        ]);
         descriptor.label = Some("particles_pipeline".into());
 
         Ok(descriptor)
@@ -195,7 +211,7 @@ type DrawCustom = (
 
 pub struct DrawParticlesInstanced;
 
-impl EntityRenderCommand for DrawParticlesInstanced {
+impl<P: PhaseItem> RenderCommand<P> for DrawParticlesInstanced {
     type Param = (
         SRes<RenderAssets<Mesh>>,
         SQuery<Read<Handle<Mesh>>>,
@@ -203,13 +219,14 @@ impl EntityRenderCommand for DrawParticlesInstanced {
     );
     #[inline]
     fn render<'w>(
+        _item: &P,
         _view: Entity,
-        item: Entity,
+        entity: Entity,
         (meshes, mesh_query, instance_buffer_query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let mesh_handle = mesh_query.get(item).unwrap();
-        let instance_buffer = instance_buffer_query.get_inner(item).unwrap();
+        let mesh_handle = mesh_query.get(entity).unwrap();
+        let instance_buffer = instance_buffer_query.get_inner(entity).unwrap();
 
         let gpu_mesh = match meshes.into_inner().get(mesh_handle) {
             Some(gpu_mesh) => gpu_mesh,
@@ -228,12 +245,16 @@ impl EntityRenderCommand for DrawParticlesInstanced {
                 pass.set_index_buffer(buffer.slice(..), 0, *index_format);
                 pass.draw_indexed(0..*count, 0, 0..instance_buffer.length as u32);
             }
-            GpuBufferInfo::NonIndexed { vertex_count } => {
-                pass.draw_indexed(0..*vertex_count, 0, 0..instance_buffer.length as u32);
+            GpuBufferInfo::NonIndexed => {
+                pass.draw(0..gpu_mesh.vertex_count, 0..instance_buffer.length as u32);
             }
         }
         RenderCommandResult::Success
     }
+
+    type ViewWorldQuery = Entity;
+
+    type ItemWorldQuery = Entity;
 }
 
 pub fn init_renderer(app: &mut App) {
