@@ -5,7 +5,7 @@ use cuda_std::*;
 use na::vector;
 
 // NOTE: the number of threads must be 4x4x4 (3D) or 4x4 (2D)
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn reset_grid(mut next_grid: GpuGrid) {
     let bid = BlockHeaderId(thread::block_idx_x());
     #[cfg(feature = "dim2")]
@@ -27,7 +27,7 @@ pub unsafe fn reset_grid(mut next_grid: GpuGrid) {
 }
 
 // NOTE: the number of threads must be 4x4x4 (3D) or 4x4 (2D)
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn copy_grid_projection_data(prev_grid: GpuGrid, mut next_grid: GpuGrid) {
     let next_bid = BlockHeaderId(thread::block_idx_x());
     #[cfg(feature = "dim2")]

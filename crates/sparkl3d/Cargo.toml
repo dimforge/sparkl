@@ -1,6 +1,6 @@
 [package]
 name    = "sparkl3d"
-version = "0.2.1"
+version = "0.3.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/sparkl3d"
@@ -36,7 +36,7 @@ required-features = [ "dim3", "f32" ]
 
 
 [dependencies]
-sparkl3d-core = "0.2"
+sparkl3d-core = { version = "0.3", path = "../sparkl3d-core" }
 nalgebra = "0.32"
 parry3d = "0.13"
 rapier3d = "0.17"
@@ -66,7 +66,7 @@ itertools = { version = "0.10", optional = true }
 
 # CUDA
 cust = { version = "0.3", optional = true }
-sparkl3d-kernels = { version = "0.2", optional = true }
+sparkl3d-kernels = { version = "0.3", optional = true, path = "../sparkl3d-kernels" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "0.9", default-features = false, features = ["bevy_winit", "render", "x11"], optional = true }

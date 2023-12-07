@@ -10,7 +10,7 @@ use sparkl_core::prelude::ActiveTimestepBounds;
 
 use super::ParticleUpdater;
 
-#[cuda_std::kernel]
+#[cfg_attr(target_os = "cuda", cuda_std::kernel)]
 pub unsafe fn estimate_timestep_length(
     min_dt: Real,
     max_dt: Real,

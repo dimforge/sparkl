@@ -6,7 +6,7 @@ use cuda_std::*;
 use sparkl_core::dynamics::{ParticleData, ParticlePosVelPhase};
 use sparkl_core::math::{Kernel, DIM};
 
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn recompute_fluids_volume_p2g(
     particles: *const ParticleData,
     particles_pos_vel: *const ParticlePosVelPhase,
@@ -48,7 +48,7 @@ fn scatter_particle(
     }
 }
 
-#[kernel]
+#[cfg_attr(target_os = "cuda", kernel)]
 pub unsafe fn recompute_fluids_volume_g2p(
     particles: *mut ParticleData,
     particles_pos_vel: *mut ParticlePosVelPhase,
