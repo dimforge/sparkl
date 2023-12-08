@@ -1,6 +1,6 @@
 [workspace]
 members = [ "crates/sparkl3d-core", "crates/sparkl3d-kernels", "crates/sparkl2d", "crates/sparkl2d-core", "crates/sparkl2d-kernels", "examples2d",
-            "crates/sparkl3d", "examples3d" ]
+            "crates/sparkl3d", "examples3d", "sparkl-dim-independent" ]
 resolver = "2"
 
 [patch.crates-io]
