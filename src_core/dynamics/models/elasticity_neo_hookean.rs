@@ -66,6 +66,7 @@ impl NeoHookeanElasticity {
         pos_part * particle_phase_coeff + neg_part
     }
 
+    // https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2
     pub fn phase_coeff(phase: Real) -> Real {
         const R: Real = 0.001;
         (1.0 - R) * phase * phase + R
@@ -75,25 +76,54 @@ impl NeoHookeanElasticity {
         false
     }
 
-    // https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.2 (46)
+    // General elastic density function: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#section.5 (8) and (9)
+    // With degradation: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2 (3)
     // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
     pub fn elastic_energy_density(
         &self,
-        deformation_gradient: Matrix<Real>,
+        particle_phase: Real,
         elastic_hardening: Real,
+        deformation_gradient: Matrix<Real>,
     ) -> Real {
-        let determinant_log = deformation_gradient.determinant().ln();
+        #[allow(non_snake_case)]
+        let F = &deformation_gradient;
 
         let hardened_mu = self.mu * elastic_hardening;
         let hardened_lambda = self.lambda * elastic_hardening;
 
-        hardened_mu / 2.
-            * ((deformation_gradient.transpose() * deformation_gradient).trace() - DIM as Real)
-            - hardened_mu * determinant_log
-            + hardened_lambda / 2. * determinant_log.powi(2)
+        // aka. bulk modulus
+        let kappa = 2.0 / 3.0 * hardened_mu + hardened_lambda;
+
+        let g_c = Self::phase_coeff(particle_phase);
+
+        #[allow(non_snake_case)]
+        let J = F.determinant();
+
+        let alpha = -1. / DIM as Real;
+
+        #[allow(non_snake_case)]
+        let J_alpha = J.powf(alpha);
+
+        #[allow(non_snake_case)]
+        let Psi_mu =
+            |F: Matrix<Real>| hardened_mu / 2. * ((F.transpose() * F).trace() - DIM as Real);
+        #[allow(non_snake_case)]
+        let Psi_mu = Psi_mu(J_alpha * F);
+
+        #[allow(non_snake_case)]
+        let Psi_kappa = kappa / 2. * ((J.powi(2) - 1.) / 2. - J.ln());
+
+        #[allow(non_snake_case)]
+        let (Psi_plus, Psi_minus) = if J >= 1. {
+            (Psi_mu + Psi_kappa, 0.)
+        } else {
+            (Psi_mu, Psi_kappa)
+        };
+
+        g_c * Psi_plus + Psi_minus
     }
 
-    // TODO: this isn't quite similar to the full density as is the case with the corotated.
+    // Basically the same as [elastic_energy_density] but only the positive part
     pub fn pos_energy(
         &self,
         particle_phase: Real,
