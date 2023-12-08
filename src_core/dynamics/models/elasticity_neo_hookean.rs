@@ -94,18 +94,13 @@ impl NeoHookeanElasticity {
         // aka. bulk modulus
         let kappa = 2.0 / 3.0 * hardened_mu + hardened_lambda;
 
-        let g_c = Self::phase_coeff(particle_phase);
-
         let J = F.determinant();
-
         let alpha = -1. / DIM as Real;
-
         let J_alpha = J.powf(alpha);
 
         let Psi_mu =
             |F: Matrix<Real>| hardened_mu / 2. * ((F.transpose() * F).trace() - DIM as Real);
         let Psi_mu = Psi_mu(J_alpha * F);
-
         let Psi_kappa = kappa / 2. * ((J.powi(2) - 1.) / 2. - J.ln());
 
         let (Psi_plus, Psi_minus) = if J >= 1. {
@@ -114,6 +109,7 @@ impl NeoHookeanElasticity {
             (Psi_mu, Psi_kappa)
         };
 
+        let g_c = Self::phase_coeff(particle_phase);
         g_c * Psi_plus + Psi_minus
     }
 
