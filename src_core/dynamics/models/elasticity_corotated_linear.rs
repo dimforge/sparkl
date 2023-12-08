@@ -78,20 +78,30 @@ impl CorotatedLinearElasticity {
     }
 
     // General elastic density function: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.3 (49)
-    pub fn elastic_energy_density(&self, deformation_gradient: Matrix<Real>) -> Real {
+    // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
+    pub fn elastic_energy_density(
+        &self,
+        deformation_gradient: Matrix<Real>,
+        elastic_hardening: Real,
+    ) -> Real {
         let singular_values = deformation_gradient
             .svd_unordered(false, false)
             .singular_values;
         let determinant: Real = singular_values.iter().product();
 
-        self.mu
+        let hardened_mu = self.mu * elastic_hardening;
+        let hardened_lambda = self.lambda * elastic_hardening;
+
+        hardened_mu
             * singular_values
                 .iter()
                 .map(|sigma| (sigma - 1.).powi(2))
                 .sum::<Real>()
-            + self.lambda / 2. * (determinant - 1.).powi(2)
+            + hardened_lambda / 2. * (determinant - 1.).powi(2)
     }
 
+    // Basically the same as [elastic_energy_density] but only the positive part
+    // See "Dynamic brittle fracture with eigenerosion enhanced material point method", 2.2 Elasticity degradation
     pub fn pos_energy(&self, deformation_gradient: Matrix<Real>, elastic_hardening: Real) -> Real {
         let j = deformation_gradient.determinant();
         let mut pos_def = deformation_gradient.svd_unordered(true, true); // TODO: why compute U and V?
