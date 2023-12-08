@@ -19,7 +19,7 @@ maintenance = { status = "actively-developed" }
 default = [ "dim3", "f32" ]
 dim3 = []
 f32 = []
-cuda = [ "cust", "sparkl3d-kernels" ]
+cuda = [ "cust", "sparkl3d-kernels", "sparkl-dim-independent/cuda" ]
 
 serde-serialize = [ "serde", "nalgebra/serde-serialize", "parry3d/serde-serialize", "rapier3d/serde-serialize",
                     "sparkl3d-core/serde-serialize" ]
