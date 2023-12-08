@@ -14,6 +14,7 @@ pub fn inv_exact(e: Real) -> Real {
 }
 
 /// Computes the Lamé parameters (lambda, mu) from the young modulus and poisson ratio.
+/// https://encyclopediaofmath.org/wiki/Lam%C3%A9_constants
 pub fn lame_lambda_mu(young_modulus: Real, poisson_ratio: Real) -> (Real, Real) {
     (
         young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)),

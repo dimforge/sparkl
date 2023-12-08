@@ -2,7 +2,7 @@ use crate::dynamics::models::{
     ActiveTimestepBounds, ConstitutiveModel, CoreConstitutiveModel, NeoHookeanElasticity,
 };
 use crate::dynamics::Particle;
-use crate::math::{Matrix, Real};
+use crate::math::{Matrix, Real, DIM};
 
 impl ConstitutiveModel for NeoHookeanElasticity {
     fn is_fluid(&self) -> bool {
@@ -11,6 +11,14 @@ impl ConstitutiveModel for NeoHookeanElasticity {
 
     fn update_particle_stress(&self, particle: &Particle) -> Matrix<Real> {
         self.kirchhoff_stress(
+            particle.phase,
+            particle.elastic_hardening,
+            &particle.deformation_gradient,
+        )
+    }
+
+    fn elastic_energy_density(&self, particle: &Particle) -> Real {
+        self.elastic_energy_density(
             particle.phase,
             particle.elastic_hardening,
             &particle.deformation_gradient,
