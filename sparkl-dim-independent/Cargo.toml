@@ -1,8 +1,80 @@
 [package]
-name = "sparkl-dim-independent"
-version = "0.1.0"
-edition = "2021"
- 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
- 
+name    = "sparkl2d"
+version = "0.3.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+description = "3-dimensional physics engine in Rust."
+documentation = "http://docs.rs/sparkl2d"
+homepage = "http://sparkl.rs"
+repository = "https://github.com/dimforge/sparkl"
+readme = "README.md"
+categories = [ "science", "game-development", "mathematics", "simulation", "wasm"]
+keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
+license = "Apache-2.0"
+edition = "2018"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[features]
+default = [ "dim2", "f32" ]
+dim2 = []
+f32 = []
+cuda = [ "cust", "sparkl2d-kernels" ]
+
+serde-serialize = [ "serde", "nalgebra/serde-serialize", "parry2d/serde-serialize", "rapier2d/serde-serialize",
+                    "sparkl2d-core/serde-serialize"]
+
+# Third-party integration.
+rapier-testbed = [ "rapier_testbed2d", "graphics", "itertools" ]
+rapier-harness = [ "rapier-testbed" ]
+graphics = [ "bevy", "bevy_egui", "bevy_ecs" ]
+
+[lib]
+path = "../../src/lib.rs"
+required-features = [ "dim2", "f32" ]
+
+
+
 [dependencies]
+sparkl2d-core = { version = "0.3", path = "../sparkl2d-core" }
+nalgebra = "0.32"
+parry2d = "0.13"
+rapier2d = "0.17"
+instant = { version = "0.1", features = [ "now" ] }
+bitflags = "1"
+anyhow = "1"
+log = "0.4"
+
+oorandom = "11" # TODO: remove this, only for testing.
+
+# Serialization
+serde = { version = "1.0", optional = true, features = [ "derive" ]}
+
+# Parallelism
+rayon = "1"
+ordered-float = "3"
+
+# Used by sp-grid
+memmap2 = "0.5"
+bytemuck = "1"
+
+# Third-party integration
+rapier_testbed2d = { version = "0.17", optional = true }
+bevy_egui = { version = "0.18", optional = true, features = [ "immutable_ctx" ] }
+bevy_ecs = { version = "0.9", optional = true }
+itertools = { version = "0.10", optional = true }
+
+# CUDA
+cust = { version = "0.3", optional = true }
+sparkl2d-kernels = { version = "0.3", optional = true, path = "../sparkl2d-kernels" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.9", default-features = false, features = ["bevy_winit", "render", "x11"], optional = true }
+
+# Dependencies for WASM only.
+#[target.'cfg(target_arch = "wasm32")'.dependencies]
+#bevy = { version = "0.6", default-features = false, features = ["bevy_winit", "render"], optional = true }
+#bevy_webgl2 = { version = "0.5", optional = true }
+
+[dev-dependencies]
+oorandom = "11"
