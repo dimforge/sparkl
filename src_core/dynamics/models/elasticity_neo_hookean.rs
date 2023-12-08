@@ -81,34 +81,35 @@ impl NeoHookeanElasticity {
     // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
     pub fn elastic_energy_density(
         &self,
-        particle_phase: Real,
-        elastic_hardening: Real,
-        deformation_gradient: &Matrix<Real>,
+        particle_phase: Real,                // aka. c
+        elastic_hardening: Real,             // aka. e^(xi (1 - J_P))
+        deformation_gradient: &Matrix<Real>, // aka. F
     ) -> Real {
-        let f = deformation_gradient;
-
         let hardened_mu = self.mu * elastic_hardening;
         let hardened_lambda = self.lambda * elastic_hardening;
 
         // aka. bulk modulus
         let kappa = 2.0 / 3.0 * hardened_mu + hardened_lambda;
 
-        let j = f.determinant();
+        let j = deformation_gradient.determinant();
         let alpha = -1. / DIM as Real;
 
-        let psi_mu =
+        // aka. Psi_mu
+        let deviatoric_part =
             |f: Matrix<Real>| hardened_mu / 2. * ((f.transpose() * f).trace() - DIM as Real);
-        let psi_mu = psi_mu(j.powf(alpha) * f);
-        let psi_kappa = kappa / 2. * ((j.powi(2) - 1.) / 2. - j.ln());
+        let deviatoric_part = deviatoric_part(j.powf(alpha) * deformation_gradient);
 
-        let (psi_plus, psi_minus) = if j >= 1. {
-            (psi_mu + psi_kappa, 0.)
+        // aka. Psi_kappa
+        let volumetric_part = kappa / 2. * ((j.powi(2) - 1.) / 2. - j.ln());
+
+        // aka. (Psi_plus, Psi_minus)
+        let (tensile_part, compressive_part) = if j >= 1. {
+            (volumetric_part + deviatoric_part, 0.)
         } else {
-            (psi_mu, psi_kappa)
+            (volumetric_part, deviatoric_part)
         };
 
-        let g_c = Self::phase_coeff(particle_phase);
-        g_c * psi_plus + psi_minus
+        Self::phase_coeff(particle_phase) * tensile_part + compressive_part
     }
 
     // Basically the same as [elastic_energy_density] but only the positive part
