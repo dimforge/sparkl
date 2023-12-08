@@ -74,6 +74,21 @@ impl CorotatedLinearElasticity {
         }
     }
 
+    // General elastic density function: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.3 (49)
+    pub fn elastic_energy_density(&self, deformation_gradient: Matrix<Real>) -> Real {
+        let singular_values = deformation_gradient
+            .svd_unordered(false, false)
+            .singular_values;
+        let determinant: Real = singular_values.iter().product();
+
+        self.mu
+            * singular_values
+                .iter()
+                .map(|sigma| (sigma - 1.).powi(2))
+                .sum::<Real>()
+            + self.lambda / 2. * (determinant - 1.).powi(2)
+    }
+
     pub fn pos_energy(&self, deformation_gradient: Matrix<Real>, elastic_hardening: Real) -> Real {
         let j = deformation_gradient.determinant();
         let mut pos_def = deformation_gradient.svd_unordered(true, true); // TODO: why compute U and V?
