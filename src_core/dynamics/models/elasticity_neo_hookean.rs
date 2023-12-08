@@ -130,6 +130,7 @@ impl NeoHookeanElasticity {
                 - DIM as Real);
         let volumetric_part = k / 2.0 * ((j * j - 1.0) / 2.0 - j.ln());
 
+        // TODO: shouldn't this be free of any phase dependency?
         if j < 1.0 {
             deviatoric_part * phase_coeff
         } else {
