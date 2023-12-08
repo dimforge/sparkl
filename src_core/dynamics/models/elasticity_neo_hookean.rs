@@ -75,6 +75,15 @@ impl NeoHookeanElasticity {
         false
     }
 
+    // https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.2
+    pub fn elastic_energy_density(&self, deformation_gradient: Matrix<Real>) -> Real {
+        let determinant_log = deformation_gradient.determinant().ln();
+        self.mu / 2.
+            * ((deformation_gradient.transpose() * deformation_gradient).trace() - DIM as Real)
+            - self.mu * determinant_log
+            + self.lambda / 2. * determinant_log.powi(2)
+    }
+
     pub fn pos_energy(
         &self,
         particle_phase: Real,
