@@ -75,7 +75,7 @@ impl NeoHookeanElasticity {
         false
     }
 
-    // https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.2
+    // https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.2 (46)
     // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
     pub fn elastic_energy_density(
         &self,
