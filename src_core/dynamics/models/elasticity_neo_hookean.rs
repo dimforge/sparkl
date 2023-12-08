@@ -79,14 +79,13 @@ impl NeoHookeanElasticity {
     // General elastic density function: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#section.5 (8) and (9)
     // With degradation: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2 (3)
     // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
-    #[allow(non_snake_case)]
     pub fn elastic_energy_density(
         &self,
         particle_phase: Real,
         elastic_hardening: Real,
         deformation_gradient: &Matrix<Real>,
     ) -> Real {
-        let F = deformation_gradient;
+        let f = deformation_gradient;
 
         let hardened_mu = self.mu * elastic_hardening;
         let hardened_lambda = self.lambda * elastic_hardening;
@@ -94,23 +93,22 @@ impl NeoHookeanElasticity {
         // aka. bulk modulus
         let kappa = 2.0 / 3.0 * hardened_mu + hardened_lambda;
 
-        let J = F.determinant();
+        let j = f.determinant();
         let alpha = -1. / DIM as Real;
-        let J_alpha = J.powf(alpha);
 
-        let Psi_mu =
-            |F: Matrix<Real>| hardened_mu / 2. * ((F.transpose() * F).trace() - DIM as Real);
-        let Psi_mu = Psi_mu(J_alpha * F);
-        let Psi_kappa = kappa / 2. * ((J.powi(2) - 1.) / 2. - J.ln());
+        let psi_mu =
+            |f: Matrix<Real>| hardened_mu / 2. * ((f.transpose() * f).trace() - DIM as Real);
+        let psi_mu = psi_mu(j.powf(alpha) * f);
+        let psi_kappa = kappa / 2. * ((j.powi(2) - 1.) / 2. - j.ln());
 
-        let (Psi_plus, Psi_minus) = if J >= 1. {
-            (Psi_mu + Psi_kappa, 0.)
+        let (psi_plus, psi_minus) = if j >= 1. {
+            (psi_mu + psi_kappa, 0.)
         } else {
-            (Psi_mu, Psi_kappa)
+            (psi_mu, psi_kappa)
         };
 
         let g_c = Self::phase_coeff(particle_phase);
-        g_c * Psi_plus + Psi_minus
+        g_c * psi_plus + psi_minus
     }
 
     // Basically the same as [elastic_energy_density] but only the positive part
