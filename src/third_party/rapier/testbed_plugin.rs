@@ -4,6 +4,7 @@ use bevy_egui::{egui, EguiContext};
 use na::{Point3, Vector3};
 use rapier::geometry::ColliderSet;
 use rapier_testbed::{harness::Harness, GraphicsManager, PhysicsState, TestbedPlugin};
+use sparkl_dim_independent::cuda_timings::CudaTimestepTimings;
 
 use super::point_cloud_render::ParticleInstanceData;
 use crate::core::dynamics::ParticleData;
@@ -22,7 +23,7 @@ use {
         cuda::{
             CudaColliderSet, CudaConstitutiveModel, CudaFailureModel, CudaMpmPipeline,
             CudaMpmPipelineParameters, CudaParticleModelSet, CudaParticleSet, CudaPlasticModel,
-            CudaSparseGrid, CudaTimestepTimings, SharedCudaVec, SingleGpuMpmContext,
+            CudaSparseGrid, SharedCudaVec, SingleGpuMpmContext,
         },
         kernels::GpuTimestepLength,
     },
