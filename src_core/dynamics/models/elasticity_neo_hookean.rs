@@ -95,9 +95,11 @@ impl NeoHookeanElasticity {
         let alpha = -1. / DIM as Real;
 
         // aka. Psi_mu
-        let deviatoric_part =
-            |f: Matrix<Real>| hardened_mu / 2. * ((f.transpose() * f).trace() - DIM as Real);
-        let deviatoric_part = deviatoric_part(j.powf(alpha) * deformation_gradient);
+        let deviatoric_part = hardened_mu / 2.
+            * (((j.powf(alpha) * deformation_gradient).transpose()
+                * (j.powf(alpha) * deformation_gradient))
+                .trace()
+                - DIM as Real);
 
         // aka. Psi_kappa
         let volumetric_part = kappa / 2. * ((j.powi(2) - 1.) / 2. - j.ln());
