@@ -18,7 +18,11 @@ impl ConstitutiveModel for NeoHookeanElasticity {
     }
 
     fn elastic_energy_density(&self, particle: &Particle) -> Real {
-        self.elastic_energy_density(particle.deformation_gradient, particle.elastic_hardening)
+        self.elastic_energy_density(
+            particle.phase,
+            particle.elastic_hardening,
+            &particle.deformation_gradient,
+        )
     }
 
     fn pos_energy(&self, particle: &Particle) -> Real {

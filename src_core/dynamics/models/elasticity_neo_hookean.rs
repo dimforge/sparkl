@@ -79,14 +79,14 @@ impl NeoHookeanElasticity {
     // General elastic density function: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#section.5 (8) and (9)
     // With degradation: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2 (3)
     // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
+    #[allow(non_snake_case)]
     pub fn elastic_energy_density(
         &self,
         particle_phase: Real,
         elastic_hardening: Real,
-        deformation_gradient: Matrix<Real>,
+        deformation_gradient: &Matrix<Real>,
     ) -> Real {
-        #[allow(non_snake_case)]
-        let F = &deformation_gradient;
+        let F = deformation_gradient;
 
         let hardened_mu = self.mu * elastic_hardening;
         let hardened_lambda = self.lambda * elastic_hardening;
@@ -96,24 +96,18 @@ impl NeoHookeanElasticity {
 
         let g_c = Self::phase_coeff(particle_phase);
 
-        #[allow(non_snake_case)]
         let J = F.determinant();
 
         let alpha = -1. / DIM as Real;
 
-        #[allow(non_snake_case)]
         let J_alpha = J.powf(alpha);
 
-        #[allow(non_snake_case)]
         let Psi_mu =
             |F: Matrix<Real>| hardened_mu / 2. * ((F.transpose() * F).trace() - DIM as Real);
-        #[allow(non_snake_case)]
         let Psi_mu = Psi_mu(J_alpha * F);
 
-        #[allow(non_snake_case)]
         let Psi_kappa = kappa / 2. * ((J.powi(2) - 1.) / 2. - J.ln());
 
-        #[allow(non_snake_case)]
         let (Psi_plus, Psi_minus) = if J >= 1. {
             (Psi_mu + Psi_kappa, 0.)
         } else {
