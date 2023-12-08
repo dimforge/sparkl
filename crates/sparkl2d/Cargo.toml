@@ -36,6 +36,7 @@ required-features = [ "dim2", "f32" ]
 
 
 [dependencies]
+sparkl-dim-independent = { version = "0.3", path = "../../sparkl-dim-independent" }
 sparkl2d-core = { version = "0.3", path = "../sparkl2d-core" }
 nalgebra = "0.32"
 parry2d = "0.13"
