@@ -17,40 +17,35 @@ pub struct ParticleModel {
     pub failure_model: Option<Arc<dyn FailureModel>>,
 }
 
-#[cfg(feature = "serde-serialize")]
-impl Serialize for ParticleModel {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let typed_data = (
-            self.constitutive_model.to_core_model(),
-            self.plastic_model.as_ref().map(|m| {
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+struct TypedData {
+    pub constitutive_model: CoreConstitutiveModel,
+    pub plastic_model: Option<CorePlasticModel>,
+    pub failure_model: Option<CoreFailureModel>,
+}
+
+impl From<&ParticleModel> for TypedData {
+    fn from(value: &ParticleModel) -> Self {
+        Self {
+            constitutive_model: value
+                .constitutive_model
+                .to_core_model()
+                .expect("Unsupported model for serialization"),
+            plastic_model: value.plastic_model.as_ref().map(|m| {
                 m.to_core_model()
                     .expect("Unsupported model for serialization.")
             }),
-            self.failure_model.as_ref().map(|m| {
+            failure_model: value.failure_model.as_ref().map(|m| {
                 m.to_core_model()
                     .expect("Unsupported model for serialization.")
             }),
-        );
-        typed_data.serialize(serializer)
+        }
     }
 }
 
-#[cfg(feature = "serde-serialize")]
-impl<'de> Deserialize<'de> for ParticleModel {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let typed_data: (
-            CoreConstitutiveModel,
-            Option<CorePlasticModel>,
-            Option<CoreFailureModel>,
-        ) = Deserialize::deserialize(deserializer)?;
-
-        let constitutive_model = match typed_data.0 {
+impl From<TypedData> for ParticleModel {
+    fn from(value: TypedData) -> Self {
+        let constitutive_model = match value.constitutive_model {
             CoreConstitutiveModel::EosMonaghanSph(m) => Arc::new(m) as Arc<dyn ConstitutiveModel>,
             CoreConstitutiveModel::NeoHookeanElasticity(m) => {
                 Arc::new(m) as Arc<dyn ConstitutiveModel>
@@ -60,7 +55,7 @@ impl<'de> Deserialize<'de> for ParticleModel {
             }
             CoreConstitutiveModel::Custom(_) => todo!(),
         };
-        let plastic_model = typed_data.1.map(|data| match data {
+        let plastic_model = value.plastic_model.map(|data| match data {
             CorePlasticModel::Snow(m) => Arc::new(m) as Arc<dyn PlasticModel>,
             CorePlasticModel::Rankine(m) => Arc::new(m) as Arc<dyn PlasticModel>,
             CorePlasticModel::Nacc(m) => Arc::new(m) as Arc<dyn PlasticModel>,
@@ -68,16 +63,37 @@ impl<'de> Deserialize<'de> for ParticleModel {
             CorePlasticModel::Custom(_) => todo!(),
         });
 
-        let failure_model = typed_data.2.map(|data| match data {
+        let failure_model = value.failure_model.map(|data| match data {
             CoreFailureModel::MaximumStress(m) => Arc::new(m) as Arc<dyn FailureModel>,
             CoreFailureModel::Custom(_) => todo!(),
         });
 
-        Ok(Self {
+        Self {
             constitutive_model,
             plastic_model,
             failure_model,
-        })
+        }
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl Serialize for ParticleModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        TypedData::from(self).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<'de> Deserialize<'de> for ParticleModel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let typed_data: TypedData = Deserialize::deserialize(deserializer)?;
+        Ok(typed_data.into())
     }
 }
 
