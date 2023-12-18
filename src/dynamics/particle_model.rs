@@ -2,6 +2,8 @@ use crate::dynamics::models::{ConstitutiveModel, FailureModel, PlasticModel};
 use rapier::data::{Arena, Index};
 use std::sync::Arc;
 
+use super::models::ExternalModel;
+
 #[cfg(feature = "serde-serialize")]
 use {
     crate::dynamics::models::{CoreConstitutiveModel, CoreFailureModel, CorePlasticModel},
@@ -53,7 +55,9 @@ impl From<TypedData> for ParticleModel {
             CoreConstitutiveModel::CorotatedLinearElasticity(m) => {
                 Arc::new(m) as Arc<dyn ConstitutiveModel>
             }
-            CoreConstitutiveModel::Custom(_) => todo!(),
+            CoreConstitutiveModel::Custom(index) => {
+                Arc::new(ExternalModel(index)) as Arc<dyn ConstitutiveModel>
+            }
         };
         let plastic_model = value.plastic_model.map(|data| match data {
             CorePlasticModel::Snow(m) => Arc::new(m) as Arc<dyn PlasticModel>,
