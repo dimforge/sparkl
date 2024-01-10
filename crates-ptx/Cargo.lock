@@ -230,7 +230,7 @@ dependencies = [
 
 [[package]]
 name = "gen-ptx"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cuda_builder",
  "pinned-dependencies",

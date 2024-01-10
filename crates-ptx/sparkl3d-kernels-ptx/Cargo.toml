@@ -1,5 +1,5 @@
 [package]
-name    = "sparkl3d-kernels"
+name    = "sparkl3d-kernels-ptx"
 version = "0.3.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
