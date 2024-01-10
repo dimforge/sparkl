@@ -2,6 +2,9 @@ use crate::dynamics::models::ActiveTimestepBounds;
 use crate::dynamics::timestep::ElasticitySoundSpeedTimestepBound;
 use crate::math::{Matrix, Real, Vector};
 
+#[cfg(not(feature = "std"))]
+use na::ComplexField;
+
 #[cfg_attr(feature = "cuda", derive(cust_core::DeviceCopy))]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
