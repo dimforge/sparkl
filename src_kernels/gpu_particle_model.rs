@@ -13,6 +13,18 @@ pub struct GpuParticleModel {
     pub failure_model: Option<GpuFailureModel>,
 }
 
+impl GpuParticleModel {
+    pub fn get_particle_data(&self) -> Option<DevicePointer<ParticleData>> {
+        self.constitutive_model.get_particle_data().or_else(|| {
+            if let Some(plastic_model) = &self.plastic_model {
+                plastic_model.get_particle_data()
+            } else {
+                None
+            }
+        })
+    }
+}
+
 impl Default for GpuParticleModel {
     fn default() -> Self {
         Self {

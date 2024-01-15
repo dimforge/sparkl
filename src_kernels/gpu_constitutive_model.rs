@@ -17,6 +17,15 @@ pub enum GpuConstitutiveModel {
 }
 
 impl GpuConstitutiveModel {
+    pub fn get_particle_data(&self) -> Option<DevicePointer<ParticleData>> {
+        match self {
+            GpuConstitutiveModel::CorotatedLinearElasticity(_, pointer) => Some(*pointer),
+            GpuConstitutiveModel::NeoHookeanElasticity(_, pointer) => Some(*pointer),
+            GpuConstitutiveModel::EosMonaghanSph(_) => None,
+            GpuConstitutiveModel::Custom(_) => None,
+        }
+    }
+
     pub fn is_fluid(&self) -> bool {
         match self {
             Self::CorotatedLinearElasticity(m, _) => m.is_fluid(),
