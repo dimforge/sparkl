@@ -1,6 +1,7 @@
 use crate::DevicePointer;
 use crate::{GpuConstitutiveModel, GpuPlasticModel};
 use sparkl_core::dynamics::models::CorotatedLinearElasticity;
+use sparkl_core::prelude::ParticleData;
 
 pub type GpuFailureModel = sparkl_core::dynamics::models::CoreFailureModel;
 
