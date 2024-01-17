@@ -15,6 +15,7 @@ pub struct DruckerPragerPlasticity {
     pub lambda: Real,
     pub mu: Real,
     pub only_active_when_failed: bool,
+    pub volume_correction: Real,
 }
 
 impl DruckerPragerPlasticity {
@@ -28,6 +29,7 @@ impl DruckerPragerPlasticity {
             lambda,
             mu,
             only_active_when_failed: false,
+            volume_correction: 1.,
         }
     }
 
@@ -83,7 +85,15 @@ impl DruckerPragerPlasticity {
             self.project_deformation_gradient(svd.singular_values, *particle_log_vol_gain, alpha)
         {
             let prev_det = svd.singular_values.product();
+
             let new_det = new_singular_values.product();
+            let diff = new_singular_values.product() - prev_det;
+            let new_det = if diff > 0. {
+                new_det
+            } else {
+                prev_det + diff * self.volume_correction
+            };
+
             *particle_plastic_deformation_gradient_det *= prev_det / new_det;
             *particle_log_vol_gain += prev_det.ln() - new_det.ln();
 
