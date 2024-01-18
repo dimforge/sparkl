@@ -604,10 +604,6 @@ dependencies = [
  "sharded-slab",
  "smallvec",
  "socket2",
- "sparkl2d-core",
- "sparkl2d-kernels",
- "sparkl3d-core",
- "sparkl3d-kernels",
  "syn",
  "tar",
  "thread_local",
@@ -851,7 +847,18 @@ dependencies = [
 
 [[package]]
 name = "sparkl2d-core"
-version = "0.2.0"
+version = "0.3.0"
+dependencies = [
+ "bitflags",
+ "bytemuck",
+ "cust",
+ "cust_core",
+ "nalgebra",
+]
+
+[[package]]
+name = "sparkl2d-core-ptx"
+version = "0.3.0"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -863,8 +870,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sparkl2d-kernels"
-version = "0.2.0"
+name = "sparkl2d-kernels-ptx"
+version = "0.3.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
@@ -877,7 +884,18 @@ dependencies = [
 
 [[package]]
 name = "sparkl3d-core"
-version = "0.2.0"
+version = "0.3.0"
+dependencies = [
+ "bitflags",
+ "bytemuck",
+ "cust",
+ "cust_core",
+ "nalgebra",
+]
+
+[[package]]
+name = "sparkl3d-core-ptx"
+version = "0.3.0"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -889,8 +907,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sparkl3d-kernels"
-version = "0.2.0"
+name = "sparkl3d-kernels-ptx"
+version = "0.3.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
