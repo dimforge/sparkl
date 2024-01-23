@@ -87,7 +87,7 @@ impl DruckerPragerPlasticity {
             let prev_det = svd.singular_values.product();
 
             let new_det = new_singular_values.product();
-            let diff = new_singular_values.product() - prev_det;
+            let diff = new_det - prev_det;
             let new_det = if diff > 0. {
                 new_det
             } else {
