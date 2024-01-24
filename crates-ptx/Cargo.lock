@@ -230,7 +230,7 @@ dependencies = [
 
 [[package]]
 name = "gen-ptx"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cuda_builder",
  "pinned-dependencies",
@@ -356,7 +356,6 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
- "serde",
  "simba",
  "typenum",
 ]
@@ -389,7 +388,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ae39348c8bc5fbd7f40c727a9925f03517afd2ab27d46702108b6a7e5414c19"
 dependencies = [
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -604,10 +602,6 @@ dependencies = [
  "sharded-slab",
  "smallvec",
  "socket2",
- "sparkl2d-core",
- "sparkl2d-kernels",
- "sparkl3d-core",
- "sparkl3d-kernels",
  "syn",
  "tar",
  "thread_local",
@@ -851,20 +845,18 @@ dependencies = [
 
 [[package]]
 name = "sparkl2d-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bitflags",
  "bytemuck",
  "cust",
  "cust_core",
  "nalgebra",
- "oorandom",
- "serde",
 ]
 
 [[package]]
-name = "sparkl2d-kernels"
-version = "0.2.0"
+name = "sparkl2d-kernels-ptx"
+version = "0.3.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
@@ -877,20 +869,18 @@ dependencies = [
 
 [[package]]
 name = "sparkl3d-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bitflags",
  "bytemuck",
  "cust",
  "cust_core",
  "nalgebra",
- "oorandom",
- "serde",
 ]
 
 [[package]]
-name = "sparkl3d-kernels"
-version = "0.2.0"
+name = "sparkl3d-kernels-ptx"
+version = "0.3.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
