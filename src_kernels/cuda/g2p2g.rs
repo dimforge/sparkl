@@ -40,6 +40,7 @@ struct GridGatherData {
 }
 
 pub struct InterpolatedParticleData {
+    pub mass: Real,
     pub velocity: Vector<Real>,
     pub velocity_gradient: Matrix<Real>,
     pub psi_pos_momentum: Real,
@@ -51,6 +52,7 @@ pub struct InterpolatedParticleData {
 impl Default for InterpolatedParticleData {
     fn default() -> Self {
         Self {
+            mass: 0.,
             velocity: na::zero(),
             velocity_gradient: na::zero(),
             psi_pos_momentum: na::zero(),
@@ -228,6 +230,7 @@ unsafe fn particle_g2p2g(
         let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 
         let cell = &*shared_nodes.add(packed_cell_index_in_block as usize + packed_shift);
+        interpolated_data.mass += weight * cell.prev_mass;
         interpolated_data.velocity += weight * cell.velocity;
         interpolated_data.velocity_gradient += (weight * inv_d) * cell.velocity * dpt.transpose();
         interpolated_data.psi_pos_momentum += weight * cell.psi_velocity;
@@ -419,12 +422,14 @@ unsafe fn transfer_global_blocks_to_shared_memory(
             let shared_node = &mut *shared_nodes.add(id_in_shared as usize);
 
             if let Some(global_node) = curr_grid.get_node(id_in_global) {
+                shared_node.mass = global_node.mass;
                 shared_node.velocity = global_node.momentum_velocity;
                 shared_node.psi_velocity = global_node.psi_momentum_velocity;
                 shared_node.projection_scaled_dir = global_node.projection_scaled_dir;
                 shared_node.projection_status = global_node.projection_status;
                 shared_node.prev_mass = global_node.prev_mass;
             } else {
+                shared_node.mass = 0.0;
                 shared_node.velocity = na::zero();
                 shared_node.psi_velocity = na::zero();
                 shared_node.projection_scaled_dir = na::zero();
