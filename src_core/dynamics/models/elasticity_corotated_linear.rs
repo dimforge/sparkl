@@ -117,6 +117,22 @@ impl CorotatedLinearElasticity {
         }
     }
 
+    // Basically the same as [elastic_energy_density] but only the negative part
+    // See "Dynamic brittle fracture with eigenerosion enhanced material point method", 2.2 Elasticity degradation
+    pub fn neg_energy(&self, deformation_gradient: Matrix<Real>, elastic_hardening: Real) -> Real {
+        let j = deformation_gradient.determinant();
+        let mut pos_def = deformation_gradient.svd_unordered(false, false);
+        pos_def.singular_values.apply(|e| *e = (*e - 1.0).max(0.0));
+
+        let spherical_part = self.lambda * elastic_hardening / 2.0 * (j - 1.0) * (j - 1.0);
+
+        if j < 1.0 {
+            spherical_part
+        } else {
+            0.
+        }
+    }
+
     pub fn active_timestep_bounds(&self) -> ActiveTimestepBounds {
         ActiveTimestepBounds::CONSTITUTIVE_MODEL_BOUND
             | ActiveTimestepBounds::PARTICLE_VELOCITY_BOUND
