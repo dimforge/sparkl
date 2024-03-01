@@ -10,7 +10,8 @@ use cuda_std::*;
 use nalgebra::vector;
 use sparkl_core::math::{Kernel, Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    DamageModel, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity, ParticleVolume,
+    DamageModel, ParticleData, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
+    ParticleVolume,
 };
 
 #[cfg(feature = "dim2")]
@@ -71,6 +72,7 @@ pub unsafe fn g2p2g(
     particles_vel: *mut ParticleVelocity,
     particles_volume: *mut ParticleVolume,
     particles_phase: *mut ParticlePhase,
+    particles_data: *mut ParticleData,
     sorted_particle_ids: *const u32,
     models: *mut GpuParticleModel,
     curr_grid: GpuGrid,
@@ -87,6 +89,7 @@ pub unsafe fn g2p2g(
         particles_vel,
         particles_volume,
         particles_phase,
+        particles_data,
         sorted_particle_ids,
         curr_grid,
         next_grid,
@@ -106,6 +109,7 @@ pub unsafe fn g2p2g_generic(
     particles_vel: *mut ParticleVelocity,
     particles_volume: *mut ParticleVolume,
     particles_phase: *mut ParticlePhase,
+    particles_data: *mut ParticleData,
     sorted_particle_ids: *const u32,
     curr_grid: GpuGrid,
     mut next_grid: GpuGrid,
@@ -148,6 +152,7 @@ pub unsafe fn g2p2g_generic(
         let mut particle_vel_i = *particles_vel.add(particle_id as usize);
         let mut particle_volume_i = *particles_volume.add(particle_id as usize);
         let mut particle_phase_i = *particles_phase.add(particle_id as usize);
+        let mut particle_data_i = *particles_data.add(particle_id as usize);
 
         particle_g2p2g(
             dt,
@@ -158,6 +163,7 @@ pub unsafe fn g2p2g_generic(
             &mut particle_vel_i,
             &mut particle_volume_i,
             &mut particle_phase_i,
+            &mut particle_data_i,
             shared_nodes,
             next_grid.cell_width(),
             damage_model,
@@ -169,6 +175,7 @@ pub unsafe fn g2p2g_generic(
         *particles_vel.add(particle_id as usize) = particle_vel_i;
         *particles_volume.add(particle_id as usize) = particle_volume_i;
         *particles_phase.add(particle_id as usize) = particle_phase_i;
+        *particles_data.add(particle_id as usize) = particle_data_i;
     }
 
     // Sync before writeback.
@@ -185,6 +192,7 @@ unsafe fn particle_g2p2g(
     particle_vel: &mut ParticleVelocity,
     particle_volume: &mut ParticleVolume,
     particle_phase: &mut ParticlePhase,
+    particle_data: &mut ParticleData,
     shared_nodes: *mut GridGatherData,
     cell_width: Real,
     _damage_model: DamageModel,
@@ -275,6 +283,7 @@ unsafe fn particle_g2p2g(
         particle_vel,
         particle_volume,
         particle_phase,
+        particle_data,
         &mut interpolated_data,
     ) {
         let inv_d = Kernel::inv_d(cell_width);

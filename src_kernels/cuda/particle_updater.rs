@@ -1,8 +1,8 @@
 use crate::{cuda::InterpolatedParticleData, GpuColliderSet, GpuParticleModel};
 use sparkl_core::math::{Matrix, Real, Vector};
 use sparkl_core::prelude::{
-    ActiveTimestepBounds, ParticlePhase, ParticlePosition, ParticleStatus, ParticleVelocity,
-    ParticleVolume,
+    ActiveTimestepBounds, ParticleData, ParticlePhase, ParticlePosition, ParticleStatus,
+    ParticleVelocity, ParticleVolume,
 };
 
 #[cfg(not(feature = "std"))]
@@ -33,6 +33,7 @@ pub trait ParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        particle_data: &mut ParticleData,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)>;
 }
@@ -81,6 +82,7 @@ impl ParticleUpdater for DefaultParticleUpdater {
         particle_vel: &mut ParticleVelocity,
         particle_volume: &mut ParticleVolume,
         particle_phase: &mut ParticlePhase,
+        _particle_data: &mut ParticleData,
         interpolated_data: &mut InterpolatedParticleData,
     ) -> Option<(Matrix<Real>, Vector<Real>)> {
         let model = &*self.models.add(particle_status.model_index);

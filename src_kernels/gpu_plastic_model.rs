@@ -18,6 +18,16 @@ pub enum GpuPlasticModel {
 }
 
 impl GpuPlasticModel {
+    pub fn get_particle_data(&self) -> Option<DevicePointer<ParticleData>> {
+        match self {
+            GpuPlasticModel::DruckerPrager(_, pointer) => Some(*pointer),
+            GpuPlasticModel::Nacc(_, pointer) => Some(*pointer),
+            GpuPlasticModel::Rankine(_, pointer) => Some(*pointer),
+            GpuPlasticModel::Snow(_, pointer) => Some(*pointer),
+            GpuPlasticModel::Custom(_) => None,
+        }
+    }
+
     pub unsafe fn update_particle(
         &self,
         particle_id: u32,
