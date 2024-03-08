@@ -27,7 +27,7 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-nalgebra = { version = "0.32", default-features = false, features = [ "bytemuck", "cuda" ] }
+nalgebra = { git = "https://github.com/Vollkornaffe/nalgebra.git", rev = "dd44414a8a27224c4a3d6e68d9368e3b3483d9ce", default-features = false, features = [ "bytemuck", "cuda" ] }
 sparkl3d-core = { version = "0.3", features = [ "cuda" ], path = "../sparkl3d-core" }
 cuda_std = "0.2"
 bytemuck = { version = "1", features = [ "derive" ] }

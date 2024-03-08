@@ -10,7 +10,7 @@ cuda = [ "sparkl3d/cuda" ]
 
 [dependencies]
 Inflector  = "0.11"
-nalgebra = "0.32"
+nalgebra = { git = "https://github.com/Vollkornaffe/nalgebra.git", rev = "dd44414a8a27224c4a3d6e68d9368e3b3483d9ce" }
 rapier_testbed3d = { version = "0.17.0", git = "https://github.com/dimforge/rapier.git", rev = "e9ea2ca10b3058a6ac2d7f4b79d351ef18ad3c06" }
 rapier3d = { version = "0.17.2", git = "https://github.com/dimforge/rapier.git", rev = "e9ea2ca10b3058a6ac2d7f4b79d351ef18ad3c06" }
 oorandom = "11"
