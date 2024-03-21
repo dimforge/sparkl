@@ -104,7 +104,7 @@ unsafe fn timestep_length_for_particle(
         dt = dt.min(cell_width / v);
     }
 
-    if dt < min_dt && max_dt > min_dt {
+    if dt < min_dt && max_dt >= min_dt {
         dt = min_dt;
     }
 
