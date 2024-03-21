@@ -319,7 +319,12 @@ impl CudaMpmPipeline {
 
         let t0 = instant::now();
 
-        while remaining_time > 0.0 {
+        for _ in 0..params.max_num_substeps {
+            if remaining_time <= 0.0 {
+                println!("break");
+                break;
+            }
+
             let mut timestep_length = Real::MAX;
             self.step_id += 1;
             niter += 1;
