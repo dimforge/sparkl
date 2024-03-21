@@ -84,6 +84,11 @@ impl<T: DeviceCopy> CudaVec<T> {
 
     pub fn remove_range(&mut self, range: Range<usize>) -> CudaResult<()> {
         assert!(range.end <= self.len(), "Range index out of bounds.");
+
+        if range.is_empty() {
+            return Ok(());
+        }
+
         let num_to_remove = range.len();
         let mut idx_to_copy = range.end;
 
