@@ -321,7 +321,6 @@ impl CudaMpmPipeline {
 
         for _ in 0..params.max_num_substeps {
             if remaining_time <= 0.0 {
-                println!("break");
                 break;
             }
 
