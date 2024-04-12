@@ -10,7 +10,7 @@ resolver = "2"
 #rapier_testbed3d = { git = "https://github.com/dimforge/rapier", branch = "testbed-init-app" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra" }
 #simba = { git = "https://github.com/dimforge/simba" }
-nalgebra = { git = "https://github.com/Vollkornaffe/nalgebra.git", rev = "dd44414a8a27224c4a3d6e68d9368e3b3483d9ce" }
+nalgebra = "0.32.5"
 
 sparkl3d-core = { path = "./crates/sparkl3d-core" }
 sparkl3d-kernels = { path = "./crates/sparkl3d-kernels" }
