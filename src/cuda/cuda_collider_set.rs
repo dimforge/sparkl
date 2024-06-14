@@ -19,6 +19,7 @@ pub struct CudaColliderSet {
     len: usize,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CudaColliderOptions {
     pub handle: ColliderHandle,
