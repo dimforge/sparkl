@@ -345,23 +345,9 @@ checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "nalgebra"
-version = "0.32.1"
+version = "0.32.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6515c882ebfddccaa73ead7320ca28036c4bc84c9bcca3cc0cbba8efe89223a"
-dependencies = [
- "approx",
- "cust_core",
- "num-complex",
- "num-rational",
- "num-traits",
- "simba",
- "typenum",
-]
-
-[[package]]
-name = "nalgebra"
-version = "0.32.4"
-source = "git+https://github.com/Vollkornaffe/nalgebra.git?rev=dd44414a8a27224c4a3d6e68d9368e3b3483d9ce#dd44414a8a27224c4a3d6e68d9368e3b3483d9ce"
+checksum = "7b5c17de023a86f59ed79891b2e5d5a94c705dbe904a5b5c9c952ea6221b03e4"
 dependencies = [
  "approx",
  "bytemuck",
@@ -377,7 +363,8 @@ dependencies = [
 [[package]]
 name = "nalgebra-macros"
 version = "0.2.1"
-source = "git+https://github.com/Vollkornaffe/nalgebra.git?rev=dd44414a8a27224c4a3d6e68d9368e3b3483d9ce#dd44414a8a27224c4a3d6e68d9368e3b3483d9ce"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91761aed67d03ad966ef783ae962ef9bbaca728d2dd7ceb7939ec110fffad998"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -504,7 +491,7 @@ dependencies = [
  "cust_core",
  "downcast-rs",
  "either",
- "nalgebra 0.32.1",
+ "nalgebra",
  "num-derive",
  "num-traits",
  "simba",
@@ -524,7 +511,7 @@ dependencies = [
  "cust_core",
  "downcast-rs",
  "either",
- "nalgebra 0.32.1",
+ "nalgebra",
  "num-derive",
  "num-traits",
  "simba",
@@ -864,7 +851,7 @@ dependencies = [
  "bytemuck",
  "cust",
  "cust_core",
- "nalgebra 0.32.4",
+ "nalgebra",
 ]
 
 [[package]]
@@ -875,7 +862,7 @@ dependencies = [
  "cuda_std",
  "cust",
  "cust_core",
- "nalgebra 0.32.4",
+ "nalgebra",
  "parry2d",
  "sparkl2d-core",
 ]
@@ -888,7 +875,7 @@ dependencies = [
  "bytemuck",
  "cust",
  "cust_core",
- "nalgebra 0.32.4",
+ "nalgebra",
 ]
 
 [[package]]
@@ -899,7 +886,7 @@ dependencies = [
  "cuda_std",
  "cust",
  "cust_core",
- "nalgebra 0.32.4",
+ "nalgebra",
  "parry3d",
  "sparkl3d-core",
 ]
