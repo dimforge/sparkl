@@ -10,6 +10,7 @@ use {
 
 pub type ParticleModelHandle = Index;
 
+#[derive(Clone)]
 pub struct ParticleModel {
     pub constitutive_model: Arc<dyn ConstitutiveModel>,
     pub plastic_model: Option<Arc<dyn PlasticModel>>,
