@@ -1,6 +1,6 @@
 [package]
 name    = "sparkl2d-kernels"
-version = "0.3.0"
+version = "0.3.1"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/sparkl2d"
