@@ -51,6 +51,48 @@ pub unsafe fn grid_update(
     }
 }
 
+fn sdf(cell_width: Real, colliders: &GpuColliderSet, query: Point<Real>) -> Option<Real> {
+    colliders
+        .iter()
+        .filter(|collider| collider.grid_boundary_handling != BoundaryHandling::None)
+        .filter_map(|collider| {
+            collider.shape.project_point_with_max_dist(
+                &collider.position,
+                &query,
+                false,
+                cell_width * 2.0,
+            )
+        })
+        .map(|projection| {
+            (projection.point - query).norm() * if projection.is_inside { -1. } else { 1. }
+        })
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal))
+}
+
+// approximated with centered finite difference
+fn sdf_gradient(cell_width: Real, colliders: &GpuColliderSet, query: Point<Real>) -> Vector<Real> {
+    const FACTOR: Real = 0.1;
+    let sdf = |offset| sdf(cell_width, colliders, query + offset);
+    let partial = |direction: Unit<Vector<Real>>| {
+        let offset_pos = direction.scale(cell_width * FACTOR);
+        let offset_neg = -offset_pos;
+        match (sdf(offset_pos), sdf(offset_neg)) {
+            (Some(sample_pos), Some(sample_neg)) => {
+                (sample_pos - sample_neg) / cell_width / FACTOR / 2.
+            }
+            _ => 0.,
+        }
+    };
+    Vector::new(
+        partial(Vector::x_axis()),
+        partial(Vector::y_axis()),
+        #[cfg(feature = "dim3")]
+        partial(Vector::z_axis()),
+    )
+    .try_normalize(1.0e-5)
+    .unwrap_or(Vector::zeros())
+}
+
 fn update_single_cell(
     dt: Real,
     cell: &mut GpuGridNode,
@@ -89,10 +131,11 @@ fn update_single_cell(
             } else {
                 GpuGridProjectionStatus::Outside(id)
             };
-            cell.projection_scaled_dir = scaled_dir;
         } else {
             cell.projection_status = GpuGridProjectionStatus::TooFar;
         }
+
+        cell.projection_scaled_dir = sdf_gradient(cell_width, colliders, cell_pos);
     }
 
     match cell.projection_status {
@@ -111,10 +154,6 @@ fn update_single_cell(
                     if let Some((mut normal, dist)) =
                         Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
                     {
-                        if is_inside {
-                            normal = -normal;
-                        }
-
                         #[cfg(feature = "dim2")]
                         let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
                         #[cfg(feature = "dim3")]
