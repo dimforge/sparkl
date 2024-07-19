@@ -454,6 +454,7 @@ pub struct GpuGridNode {
     pub psi_mass: Real,
     pub prev_mass: Real,
     pub projection_status: GpuGridProjectionStatus,
+    pub collision_normal: Vector<Real>,
     pub projection_scaled_dir: Vector<Real>,
 }
 
@@ -466,6 +467,7 @@ impl Default for GpuGridNode {
             psi_mass: 0.0,
             prev_mass: 0.0,
             projection_status: GpuGridProjectionStatus::NotComputed,
+            collision_normal: Vector::zeros(),
             projection_scaled_dir: Vector::zeros(),
         }
     }

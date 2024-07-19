@@ -131,11 +131,12 @@ fn update_single_cell(
             } else {
                 GpuGridProjectionStatus::Outside(id)
             };
+            cell.projection_scaled_dir = scaled_dir;
         } else {
             cell.projection_status = GpuGridProjectionStatus::TooFar;
         }
 
-        cell.projection_scaled_dir = sdf_gradient(cell_width, colliders, cell_pos);
+        cell.collision_normal = sdf_gradient(cell_width, colliders, cell_pos);
     }
 
     match cell.projection_status {
@@ -152,7 +153,7 @@ fn update_single_cell(
                 }
                 BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
                     if let Some((mut normal, dist)) =
-                        Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
+                        Unit::try_new_and_get(cell.collision_normal, 1.0e-5)
                     {
                         #[cfg(feature = "dim2")]
                         let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
