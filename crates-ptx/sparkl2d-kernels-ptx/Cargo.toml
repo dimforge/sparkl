@@ -29,7 +29,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 nalgebra = { version = "0.32", default-features = false, features = [ "bytemuck", "cuda" ] }
-sparkl2d-core = { version = "0.3", features = [ "cuda" ], path = "../../crates/sparkl2d-core" }
+sparkl2d-core = { version = "0.4", features = [ "cuda" ], path = "../../crates/sparkl2d-core" }
 cuda_std = "0.2"
 bytemuck = { version = "1", features = [ "derive" ] }
 parry2d = { version = "0.13", default-features = false, features = [ "required-features", "cuda" ] }
