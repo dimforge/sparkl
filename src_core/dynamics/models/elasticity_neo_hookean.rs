@@ -66,6 +66,7 @@ impl NeoHookeanElasticity {
         pos_part * particle_phase_coeff + neg_part
     }
 
+    // https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2
     pub fn phase_coeff(phase: Real) -> Real {
         const R: Real = 0.001;
         (1.0 - R) * phase * phase + R
@@ -75,6 +76,45 @@ impl NeoHookeanElasticity {
         false
     }
 
+    // General elastic density function: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#section.5 (8) and (9)
+    // With degradation: https://dl.acm.org/doi/pdf/10.1145/3306346.3322949#subsection.3.2 (3)
+    // With hardening: https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf#subsection.6.5 (87)
+    pub fn elastic_energy_density(
+        &self,
+        particle_phase: Real,                // aka. c
+        elastic_hardening: Real,             // aka. e^(xi (1 - J_P))
+        deformation_gradient: &Matrix<Real>, // aka. F
+    ) -> Real {
+        let hardened_mu = self.mu * elastic_hardening;
+        let hardened_lambda = self.lambda * elastic_hardening;
+
+        // aka. bulk modulus
+        let kappa = 2.0 / 3.0 * hardened_mu + hardened_lambda;
+
+        let j = deformation_gradient.determinant();
+        let alpha = -1. / DIM as Real;
+
+        // aka. Psi_mu
+        let deviatoric_part = hardened_mu / 2.
+            * (((j.powf(alpha) * deformation_gradient).transpose()
+                * (j.powf(alpha) * deformation_gradient))
+                .trace()
+                - DIM as Real);
+
+        // aka. Psi_kappa
+        let volumetric_part = kappa / 2. * ((j.powi(2) - 1.) / 2. - j.ln());
+
+        // aka. (Psi_plus, Psi_minus)
+        let (tensile_part, compressive_part) = if j >= 1. {
+            (volumetric_part + deviatoric_part, 0.)
+        } else {
+            (volumetric_part, deviatoric_part)
+        };
+
+        Self::phase_coeff(particle_phase) * tensile_part + compressive_part
+    }
+
+    // Basically the same as [elastic_energy_density] but only the positive part
     pub fn pos_energy(
         &self,
         particle_phase: Real,
@@ -92,6 +132,7 @@ impl NeoHookeanElasticity {
                 - DIM as Real);
         let volumetric_part = k / 2.0 * ((j * j - 1.0) / 2.0 - j.ln());
 
+        // TODO: shouldn't this be free of any phase dependency?
         if j < 1.0 {
             deviatoric_part * phase_coeff
         } else {

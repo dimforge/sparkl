@@ -17,6 +17,10 @@ impl ConstitutiveModel for CorotatedLinearElasticity {
         )
     }
 
+    fn elastic_energy_density(&self, particle: &Particle) -> Real {
+        self.elastic_energy_density(particle.deformation_gradient, particle.elastic_hardening)
+    }
+
     fn pos_energy(&self, particle: &Particle) -> Real {
         self.pos_energy(particle.deformation_gradient, particle.elastic_hardening)
     }

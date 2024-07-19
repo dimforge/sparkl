@@ -4,6 +4,11 @@ use crate::math::{Matrix, Real};
 
 pub trait ConstitutiveModel: Send + Sync {
     fn is_fluid(&self) -> bool;
+
+    fn elastic_energy_density(&self, _particle: &Particle) -> Real {
+        0.0
+    }
+
     fn pos_energy(&self, _particle: &Particle) -> Real {
         0.0
     }
