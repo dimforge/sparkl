@@ -131,11 +131,12 @@ fn update_single_cell(
             } else {
                 GpuGridProjectionStatus::Outside(id)
             };
+            cell.projection_scaled_dir = scaled_dir;
         } else {
             cell.projection_status = GpuGridProjectionStatus::TooFar;
         }
 
-        cell.projection_scaled_dir = sdf_gradient(cell_width, colliders, cell_pos);
+        cell.collision_normal = sdf_gradient(cell_width, colliders, cell_pos);
     }
 
     match cell.projection_status {
@@ -151,9 +152,10 @@ fn update_single_cell(
                     }
                 }
                 BoundaryHandling::Friction | BoundaryHandling::FrictionZUp => {
-                    if let Some((mut normal, dist)) =
-                        Unit::try_new_and_get(cell.projection_scaled_dir, 1.0e-5)
-                    {
+                    if cell.collision_normal != Vector::zeros() {
+                        let normal = cell.collision_normal;
+                        let dist = cell.projection_scaled_dir.norm();
+
                         #[cfg(feature = "dim2")]
                         let apply_friction = true; // In 2D, Friction and FrictionZUp act the same.
                         #[cfg(feature = "dim3")]
@@ -168,8 +170,7 @@ fn update_single_cell(
                             if normal_vel < 0.0 {
                                 let dist_with_margin = dist - cell_width;
                                 if is_inside || dist_with_margin <= 0.0 {
-                                    let tangent_vel =
-                                        cell_velocity - normal_vel * normal.into_inner();
+                                    let tangent_vel = cell_velocity - normal_vel * normal;
                                     let tangent_vel_norm = tangent_vel.norm();
 
                                     cell_velocity = tangent_vel;
@@ -180,8 +181,7 @@ fn update_single_cell(
                                             * (tangent_vel_norm + normal_vel * friction).max(0.0);
                                     }
                                 } else if -normal_vel * dt > dist_with_margin {
-                                    cell_velocity -=
-                                        (dist_with_margin / dt + normal_vel) * normal.into_inner();
+                                    cell_velocity -= (dist_with_margin / dt + normal_vel) * normal;
                                 }
                             }
                         }

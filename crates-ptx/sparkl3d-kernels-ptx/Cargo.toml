@@ -1,6 +1,6 @@
 [package]
 name    = "sparkl3d-kernels-ptx"
-version = "0.3.2"
+version = "0.4.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/sparkl3d"
@@ -31,7 +31,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 nalgebra = { version = "0.32", default-features = false, features = [ "bytemuck", "cuda" ] }
-sparkl3d-core = { version = "0.3", features = [ "cuda" ], path = "../../crates/sparkl3d-core" }
+sparkl3d-core = { version = "0.4", features = [ "cuda" ], path = "../../crates/sparkl3d-core" }
 cuda_std = "0.2"
 bytemuck = { version = "1", features = [ "derive" ] }
 parry3d = { version = "0.13", default-features = false, features = [ "required-features", "cuda" ] }

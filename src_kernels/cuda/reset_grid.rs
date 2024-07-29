@@ -53,6 +53,7 @@ pub unsafe fn copy_grid_projection_data(prev_grid: GpuGrid, mut next_grid: GpuGr
         ) {
             next_cell.prev_mass = prev_cell.mass;
             next_cell.projection_status = prev_cell.projection_status;
+            next_cell.collision_normal = prev_cell.collision_normal;
             next_cell.projection_scaled_dir = prev_cell.projection_scaled_dir;
         }
     }

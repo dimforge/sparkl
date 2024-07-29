@@ -230,7 +230,7 @@ dependencies = [
 
 [[package]]
 name = "gen-ptx"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cuda_builder",
  "pinned-dependencies",
@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "sparkl2d-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -856,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "sparkl2d-kernels-ptx"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "sparkl3d-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "sparkl3d-kernels-ptx"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cuda_std",
