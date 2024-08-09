@@ -1,6 +1,7 @@
 use crate::DevicePointer;
 use crate::{GpuConstitutiveModel, GpuPlasticModel};
 use sparkl_core::dynamics::models::CorotatedLinearElasticity;
+use sparkl_core::prelude::ParticleData;
 
 pub type GpuFailureModel = sparkl_core::dynamics::models::CoreFailureModel;
 
@@ -10,6 +11,18 @@ pub struct GpuParticleModel {
     pub constitutive_model: GpuConstitutiveModel,
     pub plastic_model: Option<GpuPlasticModel>,
     pub failure_model: Option<GpuFailureModel>,
+}
+
+impl GpuParticleModel {
+    pub fn get_particle_data(&self) -> Option<DevicePointer<ParticleData>> {
+        self.constitutive_model.get_particle_data().or_else(|| {
+            if let Some(plastic_model) = &self.plastic_model {
+                plastic_model.get_particle_data()
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl Default for GpuParticleModel {
