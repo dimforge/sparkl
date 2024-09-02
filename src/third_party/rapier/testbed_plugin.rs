@@ -1,5 +1,7 @@
 use crate::math::{Real, Vector};
 use bevy::prelude::*;
+use bevy::render::batching::NoAutomaticBatching;
+use bevy::render::view::NoFrustumCulling;
 use bevy_egui::{egui, EguiContexts};
 use na::{Point3, Vector3};
 use rapier::geometry::ColliderSet;
@@ -360,7 +362,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         _meshes: &mut Assets<Mesh>,
         #[cfg(feature = "dim2")] _materials: &mut Assets<ColorMaterial>,
         #[cfg(feature = "dim3")] _materials: &mut Assets<StandardMaterial>,
-        _components: &mut Query<(&mut Transform,)>,
+        _components: &mut Query<&mut Transform>,
         _harness: &mut Harness,
     ) {
         self.simulated_time = 0.0;
@@ -385,19 +387,18 @@ impl TestbedPlugin for MpmTestbedPlugin {
         {
             let entity = _commands
                 .spawn((
-                    _meshes.add(
-                        shape::Icosphere {
-                            radius: 1.0,
-                            subdivisions: 5,
-                        }
-                        .try_into()
-                        .unwrap(),
-                    ),
-                    Transform::from_xyz(0.0, 0.0, 0.0),
-                    GlobalTransform::default(),
+                    _meshes.add(Sphere::new(1.0).mesh().ico(5).unwrap()),
+                    SpatialBundle::INHERITED_IDENTITY,
                     ParticleInstanceMaterialData(vec![]),
-                    Visibility::default(),
-                    ComputedVisibility::default(),
+                    // NOTE: Frustum culling is done based on the Aabb of the Mesh and the GlobalTransform.
+                    // As the cube is at the origin, if its Aabb moves outside the view frustum, all the
+                    // instanced cubes will be culled.
+                    // The InstanceMaterialData contains the 'GlobalTransform' information for this custom
+                    // instancing, and that is not taken into account with the built-in frustum culling.
+                    // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
+                    // component to avoid incorrect culling.
+                    NoFrustumCulling,
+                    NoAutomaticBatching,
                 ))
                 .id();
 
@@ -608,7 +609,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         _meshes: &mut Assets<Mesh>,
         #[cfg(feature = "dim2")] _materials: &mut Assets<ColorMaterial>,
         #[cfg(feature = "dim3")] _materials: &mut Assets<StandardMaterial>,
-        _positions: &mut Query<(&mut Transform,)>,
+        _positions: &mut Query<&mut bevy::prelude::Transform>,
         _harness: &mut Harness,
     ) {
         self.step_id += 1;
@@ -753,9 +754,18 @@ impl TestbedPlugin for MpmTestbedPlugin {
             }
             #[cfg(feature = "dim3")]
             {
-                commands
-                    .entity(gfx.entity)
-                    .insert(ParticleInstanceMaterialData(instance_data));
+                commands.entity(gfx.entity).insert((
+                    ParticleInstanceMaterialData(instance_data),
+                    // NOTE: Frustum culling is done based on the Aabb of the Mesh and the GlobalTransform.
+                    // As the cube is at the origin, if its Aabb moves outside the view frustum, all the
+                    // instanced cubes will be culled.
+                    // The InstanceMaterialData contains the 'GlobalTransform' information for this custom
+                    // instancing, and that is not taken into account with the built-in frustum culling.
+                    // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
+                    // component to avoid incorrect culling.
+                    NoFrustumCulling,
+                    NoAutomaticBatching,
+                ));
             }
         }
     }
@@ -769,7 +779,7 @@ impl TestbedPlugin for MpmTestbedPlugin {
         _meshes: &mut Assets<Mesh>,
         #[cfg(feature = "dim2")] _materials: &mut Assets<ColorMaterial>,
         #[cfg(feature = "dim3")] _materials: &mut Assets<StandardMaterial>,
-        _components: &mut Query<(&mut Transform,)>,
+        _components: &mut Query<&mut Transform>,
     ) {
         #[cfg(feature = "cuda")]
         {
